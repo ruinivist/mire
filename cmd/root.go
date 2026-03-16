@@ -12,6 +12,8 @@ func Run(args []string) int {
 	switch args[0] {
 	case "init":
 		return runInit(args[1:])
+	case "record":
+		return runRecord(args[1:])
 	default:
 		output.Printf("unknown command: %s\n", args[0])
 		return 1
