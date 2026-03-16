@@ -9,8 +9,7 @@ import (
 )
 
 type Config struct {
-	TestDir    string
-	HasTestDir bool
+	TestDir string
 }
 
 type tomlConfig struct {
@@ -21,11 +20,11 @@ type tomlMiroConfig struct {
 	TestDir string `toml:"test_dir"`
 }
 
-// ReadConfig reads miro.toml and reports whether [miro].test_dir was explicitly set.
+// ReadConfig reads miro.toml.
 func ReadConfig(path string) (Config, error) {
 	var raw tomlConfig
 
-	meta, err := toml.DecodeFile(path, &raw)
+	_, err := toml.DecodeFile(path, &raw)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return Config{}, err
@@ -34,7 +33,6 @@ func ReadConfig(path string) (Config, error) {
 	}
 
 	return Config{
-		TestDir:    raw.Miro.TestDir,
-		HasTestDir: meta.IsDefined("miro", "test_dir"),
+		TestDir: raw.Miro.TestDir,
 	}, nil
 }

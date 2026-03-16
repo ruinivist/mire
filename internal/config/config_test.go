@@ -11,19 +11,16 @@ func TestReadConfig(t *testing.T) {
 		name        string
 		content     string
 		wantDir     string
-		wantHasDir  bool
 		wantReadErr bool
 	}{
 		{
-			name:       "with test dir",
-			content:    "[miro]\ntest_dir = \"custom/suite\"\n",
-			wantDir:    "custom/suite",
-			wantHasDir: true,
+			name:    "with test dir",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n",
+			wantDir: "custom/suite",
 		},
 		{
-			name:       "without test dir",
-			content:    "[miro]\n",
-			wantHasDir: false,
+			name:    "without test dir",
+			content: "[miro]\n",
 		},
 		{
 			name:        "invalid toml",
@@ -51,9 +48,6 @@ func TestReadConfig(t *testing.T) {
 			}
 			if got.TestDir != tt.wantDir {
 				t.Fatalf("ReadConfig() TestDir = %q, want %q", got.TestDir, tt.wantDir)
-			}
-			if got.HasTestDir != tt.wantHasDir {
-				t.Fatalf("ReadConfig() HasTestDir = %v, want %v", got.HasTestDir, tt.wantHasDir)
 			}
 		})
 	}
