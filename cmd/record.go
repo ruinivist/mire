@@ -5,21 +5,23 @@ import (
 
 	"miro/internal/miro"
 	"miro/internal/output"
+
+	"github.com/spf13/cobra"
 )
 
-func runRecord(args []string) int {
-	if len(args) != 1 {
-		output.Println("record requires exactly one path")
-		return 1
-	}
+func newRecordCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:  "record <path>",
+		Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			path := filepath.Clean(args[0])
+			createdPath, err := miro.Record(path)
+			if err != nil {
+				return err
+			}
 
-	path := filepath.Clean(args[0])
-	createdPath, err := miro.Record(path)
-	if err != nil {
-		output.Printf("%v\n", err)
-		return 1
+			output.Println(createdPath)
+			return nil
+		},
 	}
-
-	output.Println(createdPath)
-	return 0
 }

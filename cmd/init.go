@@ -1,23 +1,23 @@
 package cmd
 
 import (
-	"strings"
-
 	"miro/internal/miro"
 	"miro/internal/output"
+
+	"github.com/spf13/cobra"
 )
 
-func runInit(args []string) int {
-	if len(args) != 0 {
-		output.Printf("unknown init option: %s\n", strings.Join(args, " "))
-		return 1
-	}
+func newInitCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:  "init",
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := miro.Init(); err != nil {
+				return err
+			}
 
-	if err := miro.Init(); err != nil {
-		output.Printf("%v\n", err)
-		return 1
+			output.Println("Done initialising...")
+			return nil
+		},
 	}
-
-	output.Println("Done initialising...")
-	return 0
 }
