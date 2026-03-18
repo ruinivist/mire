@@ -40,7 +40,7 @@ func newRootCommand() *cobra.Command {
 }
 
 func ensureDependencies() error {
-	for _, name := range []string{"bwrap", "screen"} {
+	for _, name := range []string{"script"} {
 		if _, err := exec.LookPath(name); err != nil {
 			return fmt.Errorf("required command %q not found in PATH", name)
 		}

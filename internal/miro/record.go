@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// Record creates the requested directory path under the resolved test directory.
+// Record creates the requested scenario path under the resolved test directory
+// and records an interactive shell session into in/out fixtures when saved.
 func Record(path string) (string, error) {
 	testDir, err := ResolveTestDir()
 	if err != nil {
@@ -20,6 +21,14 @@ func Record(path string) (string, error) {
 	}
 
 	if err := os.MkdirAll(target, 0o755); err != nil {
+		return "", err
+	}
+
+	if err := recordScenario(target, recordIO{
+		in:  os.Stdin,
+		out: os.Stdout,
+		err: os.Stderr,
+	}); err != nil {
 		return "", err
 	}
 

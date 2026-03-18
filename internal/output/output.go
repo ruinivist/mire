@@ -2,6 +2,8 @@ package output
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
 )
 
@@ -25,9 +27,17 @@ func Format(msg string) string {
 }
 
 func Println(msg string) {
-	fmt.Println(Format(msg))
+	Fprintln(os.Stdout, msg)
 }
 
 func Printf(format string, args ...any) {
-	fmt.Print(Format(fmt.Sprintf(format, args...)))
+	Fprintf(os.Stdout, format, args...)
+}
+
+func Fprintln(w io.Writer, msg string) {
+	fmt.Fprintln(w, Format(msg))
+}
+
+func Fprintf(w io.Writer, format string, args ...any) {
+	fmt.Fprint(w, Format(fmt.Sprintf(format, args...)))
 }

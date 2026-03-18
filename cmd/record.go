@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"path/filepath"
 
 	"miro/internal/miro"
@@ -17,6 +18,9 @@ func newRecordCommand() *cobra.Command {
 			path := filepath.Clean(args[0])
 			createdPath, err := miro.Record(path)
 			if err != nil {
+				if errors.Is(err, miro.ErrRecordingDiscarded) {
+					return nil
+				}
 				return err
 			}
 

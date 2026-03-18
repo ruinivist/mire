@@ -12,7 +12,7 @@ import (
 )
 
 func TestRunShowsHelpWhenNoArgs(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run(nil); got != 0 {
@@ -32,7 +32,7 @@ func TestRunShowsHelpWhenNoArgs(t *testing.T) {
 }
 
 func TestRunInit(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"init"}); got != 0 {
@@ -49,7 +49,7 @@ func TestRunInit(t *testing.T) {
 }
 
 func TestRunRecord(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
@@ -58,6 +58,7 @@ func TestRunRecord(t *testing.T) {
 	}
 
 	withWorkingDir(t, root, func() {
+		withStdin(t, "y\n", func() {})
 		stdout, stderr := captureOutput(t, func() {
 			if got := Run([]string{"record", "suite/spec"}); got != 0 {
 				t.Fatalf("Run() code = %d, want %d", got, 0)
@@ -68,22 +69,20 @@ func TestRunRecord(t *testing.T) {
 		if stdout != prefixed(createdPath+"\n") {
 			t.Fatalf("stdout = %q, want %q", stdout, prefixed(createdPath+"\n"))
 		}
-		if stderr != "" {
-			t.Fatalf("stderr = %q, want empty", stderr)
+		if !strings.Contains(stderr, "Save recording?") {
+			t.Fatalf("stderr = %q, want save prompt", stderr)
 		}
 
-		info, err := os.Stat(createdPath)
-		if err != nil {
-			t.Fatalf("Stat() error = %v", err)
-		}
-		if !info.IsDir() {
-			t.Fatalf("created path %q is not a directory", createdPath)
+		for _, name := range []string{"in", "out"} {
+			if _, err := os.Stat(filepath.Join(createdPath, name)); err != nil {
+				t.Fatalf("Stat(%q) error = %v", filepath.Join(createdPath, name), err)
+			}
 		}
 	})
 }
 
 func TestRunRecordWithExplicitTestDirPath(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
@@ -92,6 +91,7 @@ func TestRunRecordWithExplicitTestDirPath(t *testing.T) {
 	}
 
 	withWorkingDir(t, root, func() {
+		withStdin(t, "y\n", func() {})
 		stdout, stderr := captureOutput(t, func() {
 			if got := Run([]string{"record", filepath.Join("e2e", "suite", "spec")}); got != 0 {
 				t.Fatalf("Run() code = %d, want %d", got, 0)
@@ -102,19 +102,19 @@ func TestRunRecordWithExplicitTestDirPath(t *testing.T) {
 		if stdout != prefixed(createdPath+"\n") {
 			t.Fatalf("stdout = %q, want %q", stdout, prefixed(createdPath+"\n"))
 		}
-		if stderr != "" {
-			t.Fatalf("stderr = %q, want empty", stderr)
+		if !strings.Contains(stderr, "Save recording?") {
+			t.Fatalf("stderr = %q, want save prompt", stderr)
 		}
 
-		if _, err := os.Stat(createdPath); err != nil {
-			t.Fatalf("Stat() error = %v", err)
+		for _, name := range []string{"in", "out"} {
+			if _, err := os.Stat(filepath.Join(createdPath, name)); err != nil {
+				t.Fatalf("Stat(%q) error = %v", filepath.Join(createdPath, name), err)
+			}
 		}
 	})
 }
 
 func TestRunRecordRejectsAbsolutePathOutsideTestDir(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
-
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
 	if err := os.MkdirAll(wantDir, 0o755); err != nil {
@@ -147,7 +147,7 @@ func TestRunFailsWhenDependenciesMissing(t *testing.T) {
 	if err := os.MkdirAll(wantDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	addFakeRecordDependencies(t, "screen")
+	t.Setenv("PATH", "")
 
 	withWorkingDir(t, root, func() {
 		stdout, stderr := captureOutput(t, func() {
@@ -159,17 +159,17 @@ func TestRunFailsWhenDependenciesMissing(t *testing.T) {
 		if stdout != "" {
 			t.Fatalf("stdout = %q, want empty", stdout)
 		}
-		if !strings.Contains(stderr, `required command "bwrap" not found in PATH`) {
+		if !strings.Contains(stderr, `required command "script" not found in PATH`) {
 			t.Fatalf("stderr = %q, want missing dependency error", stderr)
 		}
-		if _, err := os.Stat(filepath.Join(wantDir, "suite", "spec")); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(wantDir, "suite", "spec", "in")); !os.IsNotExist(err) {
 			t.Fatalf("Stat() error = %v, want not exists", err)
 		}
 	})
 }
 
 func TestRunRecordMissingPath(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"record"}); got != 1 {
@@ -189,7 +189,7 @@ func TestRunRecordMissingPath(t *testing.T) {
 }
 
 func TestRunInitExtraArgs(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"init", "extra"}); got != 1 {
@@ -209,7 +209,7 @@ func TestRunInitExtraArgs(t *testing.T) {
 }
 
 func TestRunUnknownCommand(t *testing.T) {
-	addFakeRecordDependencies(t, "bwrap", "screen")
+	addFakeRecordDependencies(t, "script")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"wat"}); got != 1 {
@@ -297,10 +297,39 @@ func addFakeRecordDependencies(t *testing.T, names ...string) {
 	binDir := t.TempDir()
 	for _, name := range names {
 		path := filepath.Join(binDir, name)
-		if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		body := "#!/bin/sh\nexit 0\n"
+		if name == "script" {
+			body = "#!/bin/sh\nin=''\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\nprintf 'fake recorded input\\n' > \"$in\"\nprintf 'fake recorded output\\n' > \"$out\"\nexit 0\n"
+		}
+		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 	}
 
-	t.Setenv("PATH", binDir)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func withStdin(t *testing.T, input string, fn func()) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "stdin.txt")
+	if err := os.WriteFile(path, []byte(input), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Open(%q) error = %v", path, err)
+	}
+
+	oldStdin := os.Stdin
+	os.Stdin = file
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		if err := file.Close(); err != nil {
+			t.Fatalf("close stdin file: %v", err)
+		}
+	})
+
+	fn()
 }
