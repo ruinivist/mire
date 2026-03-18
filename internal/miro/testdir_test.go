@@ -22,6 +22,7 @@ func TestInitCreatesConfigAtProjectRoot(t *testing.T) {
 	if got != "test_dir = \"e2e\"\n" {
 		t.Fatalf("config = %q, want %q", got, "test_dir = \"e2e\"\n")
 	}
+	assertRecordShell(t, filepath.Join(root, "e2e", recordShellName))
 }
 
 func TestInitUsesGitRoot(t *testing.T) {
@@ -40,11 +41,13 @@ func TestInitUsesGitRoot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "miro.toml")); err != nil {
 		t.Fatalf("Stat(%q) error = %v", filepath.Join(root, "miro.toml"), err)
 	}
+	assertRecordShell(t, filepath.Join(root, "e2e", recordShellName))
 }
 
 func TestInitLeavesExistingValidConfigUntouched(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "custom", "suite", recordShellName), "outdated\n")
 
 	withWorkingDir(t, root, func() struct{} {
 		if err := Init(); err != nil {
@@ -57,6 +60,21 @@ func TestInitLeavesExistingValidConfigUntouched(t *testing.T) {
 	if got != "test_dir = \"custom/suite\"\n" {
 		t.Fatalf("config = %q, want %q", got, "test_dir = \"custom/suite\"\n")
 	}
+	assertRecordShell(t, filepath.Join(root, "custom", "suite", recordShellName))
+}
+
+func TestInitCreatesMissingConfiguredTestDir(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"custom/suite\"\n")
+
+	withWorkingDir(t, root, func() struct{} {
+		if err := Init(); err != nil {
+			t.Fatalf("Init() error = %v", err)
+		}
+		return struct{}{}
+	})
+
+	assertRecordShell(t, filepath.Join(root, "custom", "suite", recordShellName))
 }
 
 func TestInitFailsWhenExistingConfigInvalid(t *testing.T) {
@@ -261,5 +279,21 @@ func mustGitInit(t *testing.T, dir string) {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git init: %v\n%s", err, out)
+	}
+}
+
+func assertRecordShell(t *testing.T, path string) {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(%q) error = %v", path, err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("%q mode = %o, want executable", path, info.Mode().Perm())
+	}
+
+	if got := readFile(t, path); got != buildRecordShellScript() {
+		t.Fatalf("shell = %q, want generated recorder shell", got)
 	}
 }

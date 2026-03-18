@@ -20,11 +20,16 @@ func Record(path string) (string, error) {
 		return "", err
 	}
 
+	shellPath, err := resolveRecordShell(testDir)
+	if err != nil {
+		return "", err
+	}
+
 	if err := os.MkdirAll(target, 0o755); err != nil {
 		return "", err
 	}
 
-	if err := recordScenario(target, recordIO{
+	if err := recordScenario(target, shellPath, recordIO{
 		in:  os.Stdin,
 		out: os.Stdout,
 		err: os.Stderr,

@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+
+host_home=${MIRO_RECORD_HOST_HOME:?}
+host_tmp=${MIRO_RECORD_HOST_TMP:?}
+project_root=${MIRO_RECORD_PROJECT_ROOT:?}
+path_env=${MIRO_RECORD_PATH_ENV:?}
+
+if command -v git >/dev/null 2>&1; then
+  HOME="$host_home" GIT_CONFIG_NOSYSTEM=1 git config --global user.name 'Miro Test' >/dev/null 2>&1 || :
+  HOME="$host_home" GIT_CONFIG_NOSYSTEM=1 git config --global user.email 'miro-test@example.com' >/dev/null 2>&1 || :
+  HOME="$host_home" GIT_CONFIG_NOSYSTEM=1 git config --global init.defaultBranch main >/dev/null 2>&1 || :
+  HOME="$host_home" GIT_CONFIG_NOSYSTEM=1 git config --global advice.defaultBranchName false >/dev/null 2>&1 || :
+fi
+
+exec bwrap \
+  --ro-bind / / \
+  --tmpfs /home \
+  --bind "$host_home" {{ .VisibleHome }} \
+  --ro-bind "$project_root" {{ .VisibleRepo }} \
+  --bind "$host_tmp" {{ .VisibleTmp }} \
+  --dev /dev \
+  --proc /proc \
+  --unshare-pid \
+  --die-with-parent \
+  --setenv GIT_AUTHOR_DATE {{ .GitDate }} \
+  --setenv GIT_COMMITTER_DATE {{ .GitDate }} \
+  --setenv GIT_CONFIG_NOSYSTEM '1' \
+  --setenv GIT_PAGER 'cat' \
+  --setenv HISTFILE '/dev/null' \
+  --setenv HOME {{ .VisibleHome }} \
+  --setenv LANG 'C' \
+  --setenv LC_ALL 'C' \
+  --setenv PAGER 'cat' \
+  --setenv PATH "$path_env" \
+  --setenv PS1 '$ ' \
+  --setenv TERM 'xterm-256color' \
+  --setenv TMPDIR {{ .VisibleTmp }} \
+  --setenv TZ 'UTC' \
+  --chdir {{ .VisibleHome }} \
+  bash --noprofile --norc -i

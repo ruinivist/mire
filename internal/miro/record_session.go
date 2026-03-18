@@ -2,7 +2,6 @@ package miro
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -25,7 +24,7 @@ type recordIO struct {
 	err io.Writer
 }
 
-func recordScenario(target string, rio recordIO) error {
+func recordScenario(target, shellPath string, rio recordIO) error {
 	rawIn, rawOut, cleanup, err := newRecordFiles()
 	if err != nil {
 		return err
@@ -48,7 +47,7 @@ func recordScenario(target string, rio recordIO) error {
 
 	output.Fprintln(rio.err, "Run commands in the recorder shell, then type exit to finish.")
 
-	if err := runRecordSession(target, rawIn, rawOut, sandbox, rio); err != nil {
+	if err := runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio); err != nil {
 		return err
 	}
 
@@ -92,7 +91,6 @@ type recordSandbox struct {
 	hostHome    string
 	hostTmp     string
 	projectRoot string
-	wrapperPath string
 	pathEnv     string
 }
 
@@ -119,7 +117,6 @@ func newRecordSandboxForProjectRoot(root, pathEnv string) (recordSandbox, func()
 		hostHome:    filepath.Join(dir, "home"),
 		hostTmp:     filepath.Join(dir, "tmp"),
 		projectRoot: root,
-		wrapperPath: filepath.Join(dir, "sandbox.sh"),
 		pathEnv:     pathEnv,
 	}
 
@@ -134,63 +131,12 @@ func newRecordSandboxForProjectRoot(root, pathEnv string) (recordSandbox, func()
 		}
 	}
 
-	body := buildRecordWrapperScript(sandbox)
-	if err := os.WriteFile(sandbox.wrapperPath, []byte(body), 0o755); err != nil {
-		cleanup()
-		return recordSandbox{}, nil, err
-	}
-
 	return sandbox, cleanup, nil
 }
-
-func buildRecordWrapperScript(sandbox recordSandbox) string {
-	var body strings.Builder
-
-	body.WriteString("#!/bin/sh\n")
-	body.WriteString("set -eu\n\n")
-	body.WriteString("if command -v git >/dev/null 2>&1; then\n")
-	body.WriteString(fmt.Sprintf("  HOME=%s GIT_CONFIG_NOSYSTEM=1 git config --global user.name 'Miro Test' >/dev/null 2>&1 || :\n", shQuote(sandbox.hostHome)))
-	body.WriteString(fmt.Sprintf("  HOME=%s GIT_CONFIG_NOSYSTEM=1 git config --global user.email 'miro-test@example.com' >/dev/null 2>&1 || :\n", shQuote(sandbox.hostHome)))
-	body.WriteString(fmt.Sprintf("  HOME=%s GIT_CONFIG_NOSYSTEM=1 git config --global init.defaultBranch main >/dev/null 2>&1 || :\n", shQuote(sandbox.hostHome)))
-	body.WriteString(fmt.Sprintf("  HOME=%s GIT_CONFIG_NOSYSTEM=1 git config --global advice.defaultBranchName false >/dev/null 2>&1 || :\n", shQuote(sandbox.hostHome)))
-	body.WriteString("fi\n\n")
-	body.WriteString("exec bwrap \\\n")
-	body.WriteString("  --ro-bind / / \\\n")
-	body.WriteString("  --tmpfs /home \\\n")
-	body.WriteString(fmt.Sprintf("  --bind %s %s \\\n", shQuote(sandbox.hostHome), shQuote(recordVisibleHome)))
-	body.WriteString(fmt.Sprintf("  --ro-bind %s %s \\\n", shQuote(sandbox.projectRoot), shQuote(recordVisibleRepo)))
-	body.WriteString(fmt.Sprintf("  --bind %s %s \\\n", shQuote(sandbox.hostTmp), shQuote(recordVisibleTmp)))
-	body.WriteString("  --dev /dev \\\n")
-	body.WriteString("  --proc /proc \\\n")
-	body.WriteString("  --unshare-pid \\\n")
-	body.WriteString("  --die-with-parent \\\n")
-	body.WriteString(fmt.Sprintf("  --setenv GIT_AUTHOR_DATE %s \\\n", shQuote(recordGitDate)))
-	body.WriteString(fmt.Sprintf("  --setenv GIT_COMMITTER_DATE %s \\\n", shQuote(recordGitDate)))
-	body.WriteString("  --setenv GIT_CONFIG_NOSYSTEM '1' \\\n")
-	body.WriteString("  --setenv GIT_PAGER 'cat' \\\n")
-	body.WriteString("  --setenv HISTFILE '/dev/null' \\\n")
-	body.WriteString(fmt.Sprintf("  --setenv HOME %s \\\n", shQuote(recordVisibleHome)))
-	body.WriteString("  --setenv LANG 'C' \\\n")
-	body.WriteString("  --setenv LC_ALL 'C' \\\n")
-	body.WriteString("  --setenv PAGER 'cat' \\\n")
-	body.WriteString(fmt.Sprintf("  --setenv PATH %s \\\n", shQuote(sandbox.pathEnv)))
-	body.WriteString("  --setenv PS1 '$ ' \\\n")
-	body.WriteString("  --setenv TERM 'xterm-256color' \\\n")
-	body.WriteString(fmt.Sprintf("  --setenv TMPDIR %s \\\n", shQuote(recordVisibleTmp)))
-	body.WriteString("  --setenv TZ 'UTC' \\\n")
-	body.WriteString(fmt.Sprintf("  --chdir %s \\\n", shQuote(recordVisibleHome)))
-	body.WriteString("  bash --noprofile --norc -i\n")
-
-	return body.String()
-}
-
-func shQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
-}
-
-func runRecordSession(dir, rawIn, rawOut string, sandbox recordSandbox, rio recordIO) error {
-	cmd := exec.Command("script", "-q", "-E", "always", "-I", rawIn, "-O", rawOut, "-c", sandbox.wrapperPath)
+func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbox, rio recordIO) error {
+	cmd := exec.Command("script", "-q", "-E", "always", "-I", rawIn, "-O", rawOut, "-c", shellPath)
 	cmd.Dir = dir
+	cmd.Env = recordSessionEnv(sandbox)
 	cmd.Stdin = rio.in
 	cmd.Stdout = rio.out
 	cmd.Stderr = rio.err

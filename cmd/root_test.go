@@ -33,6 +33,7 @@ func TestRunShowsHelpWhenNoArgs(t *testing.T) {
 
 func TestRunInit(t *testing.T) {
 	root := t.TempDir()
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	withWorkingDir(t, root, func() {
 		stdout, stderr := captureOutput(t, func() {
@@ -52,6 +53,13 @@ func TestRunInit(t *testing.T) {
 	if got := mustReadFile(t, filepath.Join(root, "miro.toml")); got != "test_dir = \"e2e\"\n" {
 		t.Fatalf("config = %q, want %q", got, "test_dir = \"e2e\"\n")
 	}
+	info, err := os.Stat(filepath.Join(root, "e2e", "shell.sh"))
+	if err != nil {
+		t.Fatalf("Stat(%q) error = %v", filepath.Join(root, "e2e", "shell.sh"), err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("shell.sh mode = %o, want executable", info.Mode().Perm())
+	}
 }
 
 func TestRunRecord(t *testing.T) {
@@ -59,12 +67,20 @@ func TestRunRecord(t *testing.T) {
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
-	if err := os.MkdirAll(wantDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll() error = %v", err)
-	}
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
 
 	withWorkingDir(t, root, func() {
+		initStdout, initStderr := captureOutput(t, func() {
+			if got := Run([]string{"init"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+		if initStdout != prefixed("Done initialising...\n") {
+			t.Fatalf("stdout = %q, want %q", initStdout, prefixed("Done initialising...\n"))
+		}
+		if initStderr != "" {
+			t.Fatalf("stderr = %q, want empty", initStderr)
+		}
+
 		withStdin(t, "y\n", func() {})
 		stdout, stderr := captureOutput(t, func() {
 			if got := Run([]string{"record", "suite/spec"}); got != 0 {
@@ -93,12 +109,20 @@ func TestRunRecordWithExplicitTestDirPath(t *testing.T) {
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
-	if err := os.MkdirAll(wantDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll() error = %v", err)
-	}
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
 
 	withWorkingDir(t, root, func() {
+		initStdout, initStderr := captureOutput(t, func() {
+			if got := Run([]string{"init"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+		if initStdout != prefixed("Done initialising...\n") {
+			t.Fatalf("stdout = %q, want %q", initStdout, prefixed("Done initialising...\n"))
+		}
+		if initStderr != "" {
+			t.Fatalf("stderr = %q, want empty", initStderr)
+		}
+
 		withStdin(t, "y\n", func() {})
 		stdout, stderr := captureOutput(t, func() {
 			if got := Run([]string{"record", filepath.Join("e2e", "suite", "spec")}); got != 0 {
@@ -169,6 +193,9 @@ func TestRunInitFailsWhenDependenciesMissing(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(root, "miro.toml")); !os.IsNotExist(err) {
 			t.Fatalf("Stat(%q) error = %v, want not exists", filepath.Join(root, "miro.toml"), err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "e2e", "shell.sh")); !os.IsNotExist(err) {
+			t.Fatalf("Stat(%q) error = %v, want not exists", filepath.Join(root, "e2e", "shell.sh"), err)
 		}
 	})
 }

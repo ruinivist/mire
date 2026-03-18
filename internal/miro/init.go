@@ -23,16 +23,20 @@ func Init() error {
 		if _, err := miroconfig.ReadConfig(configPath); err != nil {
 			return err
 		}
-		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to check %s: %v", configPath, err)
+	} else {
+		if err := miroconfig.WriteConfig(configPath, miroconfig.Config{
+			TestDir: defaultTestDir,
+		}); err != nil {
+			return fmt.Errorf("failed to write %s: %v", configPath, err)
+		}
 	}
 
-	if err := miroconfig.WriteConfig(configPath, miroconfig.Config{
-		TestDir: defaultTestDir,
-	}); err != nil {
-		return fmt.Errorf("failed to write %s: %v", configPath, err)
+	testDir, err := resolveTestDirFromRoot(root)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	return writeRecordShell(testDir)
 }
