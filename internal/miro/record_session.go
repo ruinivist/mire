@@ -48,10 +48,15 @@ func recordScenario(target string, rio recordIO) error {
 		return ErrRecordingDiscarded
 	}
 
-	if err := copyRecordFile(rawIn, filepath.Join(target, "in")); err != nil {
+	recordedIn, recordedOut, err := loadRecordedFixtures(rawIn, rawOut)
+	if err != nil {
 		return err
 	}
-	if err := copyRecordFile(rawOut, filepath.Join(target, "out")); err != nil {
+
+	if err := os.WriteFile(filepath.Join(target, "in"), recordedIn, 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(target, "out"), recordedOut, 0o644); err != nil {
 		return err
 	}
 
@@ -131,11 +136,16 @@ func recordFixturesExist(target string) (bool, error) {
 	return false, nil
 }
 
-func copyRecordFile(src, dst string) error {
-	data, err := os.ReadFile(src)
+func loadRecordedFixtures(rawIn, rawOut string) ([]byte, []byte, error) {
+	recordedIn, err := os.ReadFile(rawIn)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	return os.WriteFile(dst, data, 0o644)
+	recordedOut, err := loadRecordedOutput(rawOut)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return recordedIn, recordedOut, nil
 }

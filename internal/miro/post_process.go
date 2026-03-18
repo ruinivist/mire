@@ -1,0 +1,82 @@
+package miro
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+)
+
+var (
+	scriptStartPrefix = []byte("Script started on ")
+	scriptDonePrefix  = []byte("Script done on ")
+)
+
+func loadRecordedOutput(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return stripScriptWrapper(data)
+}
+
+func stripScriptWrapper(data []byte) ([]byte, error) {
+	hasHeader := bytes.HasPrefix(data, scriptStartPrefix)
+
+	headerEnd := bytes.IndexByte(data, '\n')
+	if hasHeader && headerEnd == -1 {
+		return nil, fmt.Errorf("could not parse script wrapper from recorded output: incomplete header line")
+	}
+
+	body := data
+	if hasHeader {
+		body = data[headerEnd+1:]
+	}
+
+	footerStart, footerState := findScriptFooter(body)
+	switch {
+	case hasHeader && footerState == footerMissing:
+		return nil, fmt.Errorf("could not parse script wrapper from recorded output: missing footer line")
+	case !hasHeader && footerState == footerFound:
+		return nil, fmt.Errorf("could not parse script wrapper from recorded output: missing header line")
+	case !hasHeader && footerState == footerMissing:
+		return nil, fmt.Errorf("could not parse script wrapper from recorded output: missing header and footer lines")
+	case footerState == footerMalformed:
+		return nil, fmt.Errorf("could not parse script wrapper from recorded output: incomplete footer line")
+	}
+
+	return body[:footerStart], nil
+}
+
+type footerMatchState int
+
+const (
+	footerMissing footerMatchState = iota
+	footerMalformed
+	footerFound
+)
+
+func findScriptFooter(data []byte) (int, footerMatchState) {
+	candidate := -1
+	switch {
+	case bytes.HasPrefix(data, scriptDonePrefix):
+		candidate = 0
+	default:
+		idx := bytes.LastIndex(data, append([]byte{'\n'}, scriptDonePrefix...))
+		if idx != -1 {
+			candidate = idx + 1
+		}
+	}
+
+	if candidate == -1 {
+		return 0, footerMissing
+	}
+
+	footer := data[candidate:]
+	newline := bytes.IndexByte(footer, '\n')
+	if newline == -1 || candidate+newline+1 != len(data) {
+		return 0, footerMalformed
+	}
+
+	return candidate, footerFound
+}

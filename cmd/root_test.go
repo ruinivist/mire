@@ -299,7 +299,7 @@ func addFakeRecordDependencies(t *testing.T, names ...string) {
 		path := filepath.Join(binDir, name)
 		body := "#!/bin/sh\nexit 0\n"
 		if name == "script" {
-			body = "#!/bin/sh\nin=''\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\nprintf 'fake recorded input\\n' > \"$in\"\nprintf 'fake recorded output\\n' > \"$out\"\nexit 0\n"
+			body = "#!/bin/sh\nin=''\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\ncat <<'EOF' > \"$in\"\nfake recorded input\nEOF\ncat <<'EOF' > \"$out\"\nScript started on 2026-03-18 11:13:38+00:00 [TERM=\"xterm-256color\"]\nfake recorded output\nScript done on 2026-03-18 11:13:44+00:00 [COMMAND_EXIT_CODE=\"0\"]\nEOF\nexit 0\n"
 		}
 		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
