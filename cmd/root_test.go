@@ -12,7 +12,7 @@ import (
 )
 
 func TestRunShowsHelpWhenNoArgs(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run(nil); got != 0 {
@@ -32,7 +32,7 @@ func TestRunShowsHelpWhenNoArgs(t *testing.T) {
 }
 
 func TestRunInit(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"init"}); got != 0 {
@@ -49,7 +49,7 @@ func TestRunInit(t *testing.T) {
 }
 
 func TestRunRecord(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
@@ -82,7 +82,7 @@ func TestRunRecord(t *testing.T) {
 }
 
 func TestRunRecordWithExplicitTestDirPath(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
@@ -168,8 +168,49 @@ func TestRunFailsWhenDependenciesMissing(t *testing.T) {
 	})
 }
 
+func TestRunRecordFailsWhenDependencyMissing(t *testing.T) {
+	root := t.TempDir()
+	wantDir := filepath.Join(root, "e2e")
+	if err := os.MkdirAll(wantDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		deps    []string
+		missing string
+	}{
+		{name: "script", deps: []string{"bwrap", "bash"}, missing: "script"},
+		{name: "bwrap", deps: []string{"script", "bash"}, missing: "bwrap"},
+		{name: "bash", deps: []string{"script", "bwrap"}, missing: "bash"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			addFakeRecordDependencies(t, tc.deps...)
+
+			withWorkingDir(t, root, func() {
+				stdout, stderr := captureOutput(t, func() {
+					if got := Run([]string{"record", "suite/spec"}); got != 1 {
+						t.Fatalf("Run() code = %d, want %d", got, 1)
+					}
+				})
+
+				if stdout != "" {
+					t.Fatalf("stdout = %q, want empty", stdout)
+				}
+				want := `required command "` + tc.missing + `" not found in PATH`
+				if !strings.Contains(stderr, want) {
+					t.Fatalf("stderr = %q, want missing dependency error %q", stderr, want)
+				}
+				if _, err := os.Stat(filepath.Join(wantDir, "suite", "spec", "in")); !os.IsNotExist(err) {
+					t.Fatalf("Stat() error = %v, want not exists", err)
+				}
+			})
+		})
+	}
+}
+
 func TestRunRecordMissingPath(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"record"}); got != 1 {
@@ -189,7 +230,7 @@ func TestRunRecordMissingPath(t *testing.T) {
 }
 
 func TestRunInitExtraArgs(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"init", "extra"}); got != 1 {
@@ -209,7 +250,7 @@ func TestRunInitExtraArgs(t *testing.T) {
 }
 
 func TestRunUnknownCommand(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"wat"}); got != 1 {
@@ -299,14 +340,14 @@ func addFakeRecordDependencies(t *testing.T, names ...string) {
 		path := filepath.Join(binDir, name)
 		body := "#!/bin/sh\nexit 0\n"
 		if name == "script" {
-			body = "#!/bin/sh\nin=''\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\ncat <<'EOF' > \"$in\"\nfake recorded input\nEOF\ncat <<'EOF' > \"$out\"\nScript started on 2026-03-18 11:13:38+00:00 [TERM=\"xterm-256color\"]\nfake recorded output\nScript done on 2026-03-18 11:13:44+00:00 [COMMAND_EXIT_CODE=\"0\"]\nEOF\nexit 0\n"
+			body = "#!/bin/sh\nif [ -n \"${FAKE_SCRIPT_ARGS_FILE:-}\" ]; then\n  : > \"$FAKE_SCRIPT_ARGS_FILE\"\n  for arg in \"$@\"; do\n    printf '%s\\n' \"$arg\" >> \"$FAKE_SCRIPT_ARGS_FILE\"\n  done\nfi\nin=''\nout=''\ncmd=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    -c)\n      cmd=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\nif [ -n \"${FAKE_SCRIPT_COMMAND_BODY_FILE:-}\" ] && [ -n \"$cmd\" ]; then\n  : > \"$FAKE_SCRIPT_COMMAND_BODY_FILE\"\n  while IFS= read -r line || [ -n \"$line\" ]; do\n    printf '%s\\n' \"$line\" >> \"$FAKE_SCRIPT_COMMAND_BODY_FILE\"\n  done < \"$cmd\"\nfi\nprintf '%s' 'fake recorded input\n' > \"$in\"\nprintf '%s' 'Script started on 2026-03-18 11:13:38+00:00 [TERM=\"xterm-256color\"]\nfake recorded output\nScript done on 2026-03-18 11:13:44+00:00 [COMMAND_EXIT_CODE=\"0\"]\n' > \"$out\"\nexit 0\n"
 		}
 		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 	}
 
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir)
 }
 
 func withStdin(t *testing.T, input string, fn func()) {

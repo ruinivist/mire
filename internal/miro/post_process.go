@@ -11,6 +11,19 @@ var (
 	scriptDonePrefix  = []byte("Script done on ")
 )
 
+func loadRecordedInput(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if hasScriptWrapper(data) {
+		return stripScriptWrapper(data)
+	}
+
+	return data, nil
+}
+
 func loadRecordedOutput(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -18,6 +31,15 @@ func loadRecordedOutput(path string) ([]byte, error) {
 	}
 
 	return stripScriptWrapper(data)
+}
+
+func hasScriptWrapper(data []byte) bool {
+	if bytes.HasPrefix(data, scriptStartPrefix) {
+		return true
+	}
+
+	_, state := findScriptFooter(data)
+	return state != footerMissing
 }
 
 func stripScriptWrapper(data []byte) ([]byte, error) {

@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestRecordCreatesRelativePath(t *testing.T) {
@@ -153,6 +156,162 @@ func TestRecordReturnsDiscardedErrorWhenOverwriteDeclined(t *testing.T) {
 	}
 }
 
+func TestNewRecordSandboxBuildsDeterministicWrapper(t *testing.T) {
+	projectRoot := filepath.Join(t.TempDir(), "project root")
+	sandbox, cleanup, err := newRecordSandboxForProjectRoot(projectRoot, "/custom/bin:/usr/bin")
+	if err != nil {
+		t.Fatalf("newRecordSandboxForProjectRoot() error = %v", err)
+	}
+	defer cleanup()
+
+	body := readFile(t, sandbox.wrapperPath)
+
+	for _, want := range []string{
+		"HOME=" + shQuote(sandbox.hostHome) + " GIT_CONFIG_NOSYSTEM=1 git config --global user.name 'Miro Test'",
+		"--bind " + shQuote(sandbox.hostHome) + " " + shQuote(recordVisibleHome),
+		"--ro-bind " + shQuote(projectRoot) + " " + shQuote(recordVisibleRepo),
+		"--bind " + shQuote(sandbox.hostTmp) + " " + shQuote(recordVisibleTmp),
+		"--setenv HOME " + shQuote(recordVisibleHome),
+		"--setenv PATH " + shQuote("/custom/bin:/usr/bin"),
+		"--setenv PS1 '$ '",
+		"--setenv TERM 'xterm-256color'",
+		"--setenv TZ 'UTC'",
+		"--chdir " + shQuote(recordVisibleHome),
+		"bash --noprofile --norc -i",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("wrapper = %q, want substring %q", body, want)
+		}
+	}
+}
+
+func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
+	root := t.TempDir()
+	addFakeRecordDependencies(t, "script")
+
+	argsPath := filepath.Join(t.TempDir(), "script.args")
+	commandBodyPath := filepath.Join(t.TempDir(), "script.command")
+	t.Setenv("FAKE_SCRIPT_ARGS_FILE", argsPath)
+	t.Setenv("FAKE_SCRIPT_COMMAND_BODY_FILE", commandBodyPath)
+
+	sandbox, cleanup, err := newRecordSandboxForProjectRoot(root, os.Getenv("PATH"))
+	if err != nil {
+		t.Fatalf("newRecordSandboxForProjectRoot() error = %v", err)
+	}
+	defer cleanup()
+
+	err = withRecordStreams(t, "", func(rio recordIO) error {
+		return runRecordSession(root, filepath.Join(t.TempDir(), "raw.in"), filepath.Join(t.TempDir(), "raw.out"), sandbox, rio)
+	})
+	if err != nil {
+		t.Fatalf("runRecordSession() error = %v", err)
+	}
+
+	args := strings.Split(strings.TrimSpace(readFile(t, argsPath)), "\n")
+	if len(args) != 9 {
+		t.Fatalf("script args = %q, want 9 args", args)
+	}
+	if got := args[:4]; strings.Join(got, "\n") != strings.Join([]string{"-q", "-E", "always", "-I"}, "\n") {
+		t.Fatalf("script args prefix = %q, want %q", got, []string{"-q", "-E", "always", "-I"})
+	}
+	if args[5] != "-O" {
+		t.Fatalf("script args[5] = %q, want %q", args[5], "-O")
+	}
+	if args[7] != "-c" {
+		t.Fatalf("script args[7] = %q, want %q", args[7], "-c")
+	}
+	if args[8] != sandbox.wrapperPath {
+		t.Fatalf("script args[8] = %q, want %q", args[8], sandbox.wrapperPath)
+	}
+
+	body := readFile(t, commandBodyPath)
+	for _, want := range []string{
+		"--ro-bind / /",
+		"--tmpfs /home",
+		"--ro-bind " + shQuote(root) + " " + shQuote(recordVisibleRepo),
+		"--setenv HOME " + shQuote(recordVisibleHome),
+		"--setenv TMPDIR " + shQuote(recordVisibleTmp),
+		"bash --noprofile --norc -i",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("wrapper = %q, want substring %q", body, want)
+		}
+	}
+}
+
+func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
+	requireCommands(t, "script", "bwrap", "bash")
+
+	root := t.TempDir()
+	testDir := filepath.Join(root, "e2e")
+	target := filepath.Join(testDir, "suite", "spec")
+	mustMkdirAll(t, target)
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close pipe reader: %v", err)
+		}
+	})
+
+	writeDone := make(chan error, 1)
+	go func() {
+		defer close(writeDone)
+		defer writer.Close()
+
+		if _, err := writer.Write([]byte("pwd\necho \"$HOME\"\ncd repo\npwd\nexit\n")); err != nil {
+			writeDone <- err
+			return
+		}
+
+		time.Sleep(300 * time.Millisecond)
+
+		if _, err := writer.Write([]byte("y\n")); err != nil {
+			writeDone <- err
+			return
+		}
+
+		writeDone <- nil
+	}()
+
+	err = withWorkingDir(t, root, func() error {
+		return recordScenario(target, recordIO{
+			in:  reader,
+			out: ioDiscard{},
+			err: &bytes.Buffer{},
+		})
+	})
+	if err != nil {
+		t.Fatalf("recordScenario() error = %v", err)
+	}
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write session input: %v", err)
+	}
+
+	recordedIn := readFile(t, filepath.Join(target, "in"))
+	if strings.Contains(recordedIn, "Script started on ") {
+		t.Fatalf("saved in = %q, want stripped script wrapper", recordedIn)
+	}
+	for _, want := range []string{"pwd\n", "echo \"$HOME\"\n", "cd repo\n", "exit\n"} {
+		if !strings.Contains(recordedIn, want) {
+			t.Fatalf("saved in = %q, want substring %q", recordedIn, want)
+		}
+	}
+
+	recordedOut := readFile(t, filepath.Join(target, "out"))
+	if strings.Contains(recordedOut, "Script started on ") {
+		t.Fatalf("saved out = %q, want stripped script wrapper", recordedOut)
+	}
+	for _, want := range []string{recordVisibleHome, recordVisibleRepo} {
+		if !strings.Contains(recordedOut, want) {
+			t.Fatalf("saved out = %q, want substring %q", recordedOut, want)
+		}
+	}
+}
+
 func withRecordStreams[T any](t *testing.T, input string, fn func(recordIO) T) T {
 	t.Helper()
 
@@ -229,12 +388,22 @@ func addFakeRecordDependencies(t *testing.T, names ...string) {
 		path := filepath.Join(binDir, name)
 		body := "#!/bin/sh\nexit 0\n"
 		if name == "script" {
-			body = "#!/bin/sh\nin=''\nout=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\nif [ -n \"${FAKE_SCRIPT_LOG_IN+x}\" ]; then\n  printf '%s' \"$FAKE_SCRIPT_LOG_IN\" > \"$in\"\nelse\n  cat <<'EOF' > \"$in\"\nfake recorded input\nEOF\nfi\nif [ -n \"${FAKE_SCRIPT_LOG_OUT+x}\" ]; then\n  printf '%s' \"$FAKE_SCRIPT_LOG_OUT\" > \"$out\"\nelse\n  cat <<'EOF' > \"$out\"\nScript started on 2026-03-18 11:13:38+00:00 [TERM=\"xterm-256color\"]\nfake recorded output\nScript done on 2026-03-18 11:13:44+00:00 [COMMAND_EXIT_CODE=\"0\"]\nEOF\nfi\nexit 0\n"
+			body = "#!/bin/sh\nif [ -n \"${FAKE_SCRIPT_ARGS_FILE:-}\" ]; then\n  : > \"$FAKE_SCRIPT_ARGS_FILE\"\n  for arg in \"$@\"; do\n    printf '%s\\n' \"$arg\" >> \"$FAKE_SCRIPT_ARGS_FILE\"\n  done\nfi\nin=''\nout=''\ncmd=''\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -I)\n      in=\"$2\"\n      shift 2\n      ;;\n    -O)\n      out=\"$2\"\n      shift 2\n      ;;\n    -c)\n      cmd=\"$2\"\n      shift 2\n      ;;\n    *)\n      shift\n      ;;\n  esac\ndone\nif [ -n \"${FAKE_SCRIPT_COMMAND_BODY_FILE:-}\" ] && [ -n \"$cmd\" ]; then\n  : > \"$FAKE_SCRIPT_COMMAND_BODY_FILE\"\n  while IFS= read -r line || [ -n \"$line\" ]; do\n    printf '%s\\n' \"$line\" >> \"$FAKE_SCRIPT_COMMAND_BODY_FILE\"\n  done < \"$cmd\"\nfi\nif [ -n \"${FAKE_SCRIPT_LOG_IN+x}\" ]; then\n  printf '%s' \"$FAKE_SCRIPT_LOG_IN\" > \"$in\"\nelse\n  printf '%s' 'fake recorded input\n' > \"$in\"\nfi\nif [ -n \"${FAKE_SCRIPT_LOG_OUT+x}\" ]; then\n  printf '%s' \"$FAKE_SCRIPT_LOG_OUT\" > \"$out\"\nelse\n  printf '%s' 'Script started on 2026-03-18 11:13:38+00:00 [TERM=\"xterm-256color\"]\nfake recorded output\nScript done on 2026-03-18 11:13:44+00:00 [COMMAND_EXIT_CODE=\"0\"]\n' > \"$out\"\nfi\nexit 0\n"
 		}
 		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 	}
 
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("PATH", binDir)
+}
+
+func requireCommands(t *testing.T, names ...string) {
+	t.Helper()
+
+	for _, name := range names {
+		if _, err := exec.LookPath(name); err != nil {
+			t.Skipf("missing command %q: %v", name, err)
+		}
+	}
 }
