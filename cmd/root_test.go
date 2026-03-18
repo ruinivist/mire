@@ -76,6 +76,61 @@ func TestRunRecord(t *testing.T) {
 	})
 }
 
+func TestRunRecordWithExplicitTestDirPath(t *testing.T) {
+	root := t.TempDir()
+	wantDir := filepath.Join(root, "e2e")
+	if err := os.MkdirAll(wantDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	withWorkingDir(t, root, func() {
+		stdout, stderr := captureOutput(t, func() {
+			if got := Run([]string{"record", filepath.Join("e2e", "suite", "spec")}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+
+		createdPath := filepath.Join(wantDir, "suite", "spec")
+		if stdout != prefixed(createdPath+"\n") {
+			t.Fatalf("stdout = %q, want %q", stdout, prefixed(createdPath+"\n"))
+		}
+		if stderr != "" {
+			t.Fatalf("stderr = %q, want empty", stderr)
+		}
+
+		if _, err := os.Stat(createdPath); err != nil {
+			t.Fatalf("Stat() error = %v", err)
+		}
+	})
+}
+
+func TestRunRecordRejectsAbsolutePathOutsideTestDir(t *testing.T) {
+	root := t.TempDir()
+	wantDir := filepath.Join(root, "e2e")
+	if err := os.MkdirAll(wantDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	outside := filepath.Join(root, "outside", "spec")
+	withWorkingDir(t, root, func() {
+		stdout, stderr := captureOutput(t, func() {
+			if got := Run([]string{"record", outside}); got != 1 {
+				t.Fatalf("Run() code = %d, want %d", got, 1)
+			}
+		})
+
+		if stdout != "" {
+			t.Fatalf("stdout = %q, want empty", stdout)
+		}
+		if !strings.Contains(stderr, "must be inside test directory") {
+			t.Fatalf("stderr = %q, want test directory error", stderr)
+		}
+		if _, err := os.Stat(outside); !os.IsNotExist(err) {
+			t.Fatalf("Stat(%q) error = %v, want not exists", outside, err)
+		}
+	})
+}
+
 func TestRunRecordMissingPath(t *testing.T) {
 	stdout, stderr := captureOutput(t, func() {
 		if got := Run([]string{"record"}); got != 1 {
