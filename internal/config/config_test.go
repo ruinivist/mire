@@ -18,27 +18,32 @@ func TestReadConfig(t *testing.T) {
 	}{
 		{
 			name:    "with test dir",
-			content: "test_dir = \"custom/suite\"\n",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n",
 			wantDir: "custom/suite",
 		},
 		{
-			name:    "legacy miro table",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n",
-			wantErr: "missing required test_dir",
+			name:    "legacy top level key",
+			content: "test_dir = \"custom/suite\"\n",
+			wantErr: "missing [miro] config",
+		},
+		{
+			name:    "without miro table",
+			content: "",
+			wantErr: "missing [miro] config",
 		},
 		{
 			name:    "without test dir",
-			content: "",
-			wantErr: "missing required test_dir",
+			content: "[miro]\n",
+			wantErr: "missing required miro.test_dir",
 		},
 		{
 			name:    "empty test dir",
-			content: "test_dir = \"\"\n",
-			wantErr: "empty test_dir",
+			content: "[miro]\ntest_dir = \"\"\n",
+			wantErr: "empty miro.test_dir",
 		},
 		{
 			name:    "invalid toml",
-			content: "test_dir = [\n",
+			content: "[miro]\ntest_dir = [\n",
 			wantErr: "failed to read",
 		},
 		{
@@ -93,8 +98,8 @@ func TestWriteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	if string(got) != "test_dir = \"e2e\"\n" {
-		t.Fatalf("config = %q, want %q", string(got), "test_dir = \"e2e\"\n")
+	if string(got) != "[miro]\n  test_dir = \"e2e\"\n" {
+		t.Fatalf("config = %q, want %q", string(got), "[miro]\n  test_dir = \"e2e\"\n")
 	}
 }
 
@@ -105,7 +110,7 @@ func TestWriteConfigEmptyTestDirFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("WriteConfig() error = nil, want error")
 	}
-	if err.Error() != "empty test_dir" {
-		t.Fatalf("WriteConfig() error = %q, want %q", err.Error(), "empty test_dir")
+	if err.Error() != "empty miro.test_dir" {
+		t.Fatalf("WriteConfig() error = %q, want %q", err.Error(), "empty miro.test_dir")
 	}
 }

@@ -19,8 +19,8 @@ func TestInitCreatesConfigAtProjectRoot(t *testing.T) {
 	})
 
 	got := readFile(t, filepath.Join(root, "miro.toml"))
-	if got != "test_dir = \"e2e\"\n" {
-		t.Fatalf("config = %q, want %q", got, "test_dir = \"e2e\"\n")
+	if got != "[miro]\n  test_dir = \"e2e\"\n" {
+		t.Fatalf("config = %q, want %q", got, "[miro]\n  test_dir = \"e2e\"\n")
 	}
 	assertRecordShell(t, filepath.Join(root, "e2e", recordShellName))
 }
@@ -46,7 +46,7 @@ func TestInitUsesGitRoot(t *testing.T) {
 
 func TestInitLeavesExistingValidConfigUntouched(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"custom/suite\"\n")
 	writeFile(t, filepath.Join(root, "custom", "suite", recordShellName), "outdated\n")
 
 	withWorkingDir(t, root, func() struct{} {
@@ -57,15 +57,15 @@ func TestInitLeavesExistingValidConfigUntouched(t *testing.T) {
 	})
 
 	got := readFile(t, filepath.Join(root, "miro.toml"))
-	if got != "test_dir = \"custom/suite\"\n" {
-		t.Fatalf("config = %q, want %q", got, "test_dir = \"custom/suite\"\n")
+	if got != "[miro]\ntest_dir = \"custom/suite\"\n" {
+		t.Fatalf("config = %q, want %q", got, "[miro]\ntest_dir = \"custom/suite\"\n")
 	}
 	assertRecordShell(t, filepath.Join(root, "custom", "suite", recordShellName))
 }
 
 func TestInitCreatesMissingConfiguredTestDir(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"custom/suite\"\n")
 
 	withWorkingDir(t, root, func() struct{} {
 		if err := Init(); err != nil {
@@ -79,7 +79,7 @@ func TestInitCreatesMissingConfiguredTestDir(t *testing.T) {
 
 func TestInitFailsWhenExistingConfigInvalid(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
 
 	err := withWorkingDir(t, root, func() error {
 		return Init()
@@ -87,8 +87,8 @@ func TestInitFailsWhenExistingConfigInvalid(t *testing.T) {
 	if err == nil {
 		t.Fatal("Init() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "missing required test_dir") {
-		t.Fatalf("Init() error = %q, want missing test_dir error", err.Error())
+	if !strings.Contains(err.Error(), "missing [miro] config") {
+		t.Fatalf("Init() error = %q, want missing [miro] config error", err.Error())
 	}
 }
 
@@ -96,7 +96,7 @@ func TestResolveTestDirFromConfig(t *testing.T) {
 	root := t.TempDir()
 	configured := filepath.Join(root, "custom", "suite")
 	mustMkdirAll(t, configured)
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"custom/suite\"\n")
 
 	got := withWorkingDir(t, root, func() string {
 		path, err := ResolveTestDir()
@@ -129,7 +129,7 @@ func TestResolveTestDirMissingConfigFails(t *testing.T) {
 
 func TestResolveTestDirMissingTestDirFails(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\n")
 
 	err := withWorkingDir(t, root, func() error {
 		_, err := ResolveTestDir()
@@ -139,14 +139,14 @@ func TestResolveTestDirMissingTestDirFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("ResolveTestDir() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "missing required test_dir") {
-		t.Fatalf("ResolveTestDir() error = %q, want missing required test_dir", err.Error())
+	if !strings.Contains(err.Error(), "missing required miro.test_dir") {
+		t.Fatalf("ResolveTestDir() error = %q, want missing required miro.test_dir", err.Error())
 	}
 }
 
 func TestResolveTestDirEmptyTestDirFails(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"\"\n")
 
 	err := withWorkingDir(t, root, func() error {
 		_, err := ResolveTestDir()
@@ -156,14 +156,14 @@ func TestResolveTestDirEmptyTestDirFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("ResolveTestDir() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "empty test_dir") {
-		t.Fatalf("ResolveTestDir() error = %q, want empty test_dir", err.Error())
+	if !strings.Contains(err.Error(), "empty miro.test_dir") {
+		t.Fatalf("ResolveTestDir() error = %q, want empty miro.test_dir", err.Error())
 	}
 }
 
 func TestResolveTestDirMalformedConfigFails(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = [\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = [\n")
 
 	err := withWorkingDir(t, root, func() error {
 		_, err := ResolveTestDir()
@@ -181,7 +181,7 @@ func TestResolveTestDirMalformedConfigFails(t *testing.T) {
 func TestResolveTestDirConfiguredMissingDirectoryReturnsConfiguredPath(t *testing.T) {
 	root := t.TempDir()
 	want := filepath.Join(root, "missing")
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"missing\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"missing\"\n")
 
 	got := withWorkingDir(t, root, func() string {
 		path, err := ResolveTestDir()
@@ -199,7 +199,7 @@ func TestResolveTestDirConfiguredMissingDirectoryReturnsConfiguredPath(t *testin
 func TestResolveTestDirConfiguredFileFails(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "case.txt"), "hello\n")
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"case.txt\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"case.txt\"\n")
 
 	err := withWorkingDir(t, root, func() error {
 		_, err := ResolveTestDir()
@@ -218,7 +218,7 @@ func TestResolveTestDirUsesGitRoot(t *testing.T) {
 	root := t.TempDir()
 	mustGitInit(t, root)
 	want := filepath.Join(root, "e2e")
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 	subdir := filepath.Join(root, "nested", "dir")
 	mustMkdirAll(t, subdir)
 

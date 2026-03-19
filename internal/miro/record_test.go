@@ -15,7 +15,7 @@ func TestRecordCreatesRelativePath(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	mustMkdirAll(t, testDir)
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 	mustWriteRecordShell(t, testDir)
 	addFakeRecordDependencies(t, "script")
 
@@ -51,7 +51,7 @@ func TestRecordAcceptsExplicitTestDirPrefix(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	mustMkdirAll(t, testDir)
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 	mustWriteRecordShell(t, testDir)
 	addFakeRecordDependencies(t, "script")
 
@@ -83,7 +83,7 @@ func TestRecordAcceptsExplicitTestDirPrefix(t *testing.T) {
 func TestRecordRejectsAbsolutePathOutsideTestDir(t *testing.T) {
 	root := t.TempDir()
 	mustMkdirAll(t, filepath.Join(root, "e2e"))
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 	outside := filepath.Join(root, "outside", "a", "b", "c")
 
 	err := withWorkingDir(t, root, func() error {
@@ -324,7 +324,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 	mustMkdirAll(t, testDir)
 	addFakeRecordDependencies(t, "script")
 

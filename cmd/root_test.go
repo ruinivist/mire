@@ -50,8 +50,8 @@ func TestRunInit(t *testing.T) {
 		}
 	})
 
-	if got := mustReadFile(t, filepath.Join(root, "miro.toml")); got != "test_dir = \"e2e\"\n" {
-		t.Fatalf("config = %q, want %q", got, "test_dir = \"e2e\"\n")
+	if got := mustReadFile(t, filepath.Join(root, "miro.toml")); got != "[miro]\n  test_dir = \"e2e\"\n" {
+		t.Fatalf("config = %q, want %q", got, "[miro]\n  test_dir = \"e2e\"\n")
 	}
 	info, err := os.Stat(filepath.Join(root, "e2e", "shell.sh"))
 	if err != nil {
@@ -152,7 +152,7 @@ func TestRunRecordRejectsAbsolutePathOutsideTestDir(t *testing.T) {
 	if err := os.MkdirAll(wantDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 
 	outside := filepath.Join(root, "outside", "spec")
 	withWorkingDir(t, root, func() {
@@ -206,7 +206,7 @@ func TestRunRecordFailsWhenDependencyMissing(t *testing.T) {
 	if err := os.MkdirAll(wantDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	writeFile(t, filepath.Join(root, "miro.toml"), "test_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
 
 	for _, tc := range []struct {
 		name    string

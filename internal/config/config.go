@@ -14,6 +14,10 @@ type Config struct {
 }
 
 type tomlConfig struct {
+	Miro tomlMiroConfig `toml:"miro"`
+}
+
+type tomlMiroConfig struct {
 	TestDir string `toml:"test_dir"`
 }
 
@@ -28,27 +32,32 @@ func ReadConfig(path string) (Config, error) {
 		}
 		return Config{}, fmt.Errorf("failed to read %s: %v", path, err)
 	}
-	if !meta.IsDefined("test_dir") {
-		return Config{}, fmt.Errorf("failed to read %s: missing required test_dir", path)
+	if !meta.IsDefined("miro") {
+		return Config{}, fmt.Errorf("failed to read %s: missing [miro] config", path)
 	}
-	if raw.TestDir == "" {
-		return Config{}, fmt.Errorf("failed to read %s: empty test_dir", path)
+	if !meta.IsDefined("miro", "test_dir") {
+		return Config{}, fmt.Errorf("failed to read %s: missing required miro.test_dir", path)
+	}
+	if raw.Miro.TestDir == "" {
+		return Config{}, fmt.Errorf("failed to read %s: empty miro.test_dir", path)
 	}
 
 	return Config{
-		TestDir: raw.TestDir,
+		TestDir: raw.Miro.TestDir,
 	}, nil
 }
 
 // WriteConfig writes miro.toml.
 func WriteConfig(path string, cfg Config) error {
 	if cfg.TestDir == "" {
-		return errors.New("empty test_dir")
+		return errors.New("empty miro.test_dir")
 	}
 
 	var buf bytes.Buffer
 	if err := toml.NewEncoder(&buf).Encode(tomlConfig{
-		TestDir: cfg.TestDir,
+		Miro: tomlMiroConfig{
+			TestDir: cfg.TestDir,
+		},
 	}); err != nil {
 		return fmt.Errorf("failed to encode %s: %v", path, err)
 	}
