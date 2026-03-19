@@ -1,11 +1,9 @@
 #!/bin/sh
 set -eu
 
-# Host directory mounted as the sandboxed HOME.
+# hoisted vars to fail fast if any missing
 host_home=${MIRO_HOST_HOME:?}
-# Host temp directory mounted read-write inside the sandbox.
 host_tmp=${MIRO_HOST_TMP:?}
-# PATH value forwarded into the sandbox so required tools stay available.
 path_env=${MIRO_PATH_ENV:?}
 visible_home=${MIRO_VISIBLE_HOME:?}
 

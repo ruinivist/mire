@@ -12,8 +12,8 @@ import (
 
 const recordShellName = "shell.sh"
 
-//go:embed record_shell.sh.tmpl
-var recordShellTemplateFS embed.FS
+//go:embed record_shell.sh
+var recordShellFS embed.FS
 
 func recordShellPath(testDir string) string {
 	return filepath.Join(testDir, recordShellName)
@@ -63,9 +63,9 @@ func resolveRecordShell(testDir string) (string, error) {
 }
 
 func buildRecordShellScript() string {
-	body, err := recordShellTemplateFS.ReadFile("record_shell.sh.tmpl")
+	body, err := recordShellFS.ReadFile("record_shell.sh")
 	if err != nil {
-		panic(fmt.Sprintf("read record shell template: %v", err))
+		panic(fmt.Sprintf("read record shell: %v", err))
 	}
 
 	return string(body)
