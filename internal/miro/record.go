@@ -10,7 +10,17 @@ import (
 // Record creates the requested scenario path under the resolved test directory
 // and records an interactive shell session into in/out fixtures when saved.
 func Record(path string) (string, error) {
-	testDir, err := ResolveTestDir()
+	root, err := currentProjectRoot()
+	if err != nil {
+		return "", err
+	}
+
+	cfg, err := readConfigFromRoot(root)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve test directory: %v", err)
+	}
+
+	testDir, err := resolveTestDirFromConfig(root, cfg)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve test directory: %v", err)
 	}
@@ -33,7 +43,7 @@ func Record(path string) (string, error) {
 		in:  os.Stdin,
 		out: os.Stdout,
 		err: os.Stderr,
-	}); err != nil {
+	}, cfg.Sandbox); err != nil {
 		return "", err
 	}
 

@@ -22,12 +22,20 @@ func ResolveTestDir() (string, error) {
 }
 
 func resolveTestDirFromRoot(root string) (string, error) {
-	configPath := filepath.Join(root, "miro.toml")
-	cfg, err := miroconfig.ReadConfig(configPath)
+	cfg, err := readConfigFromRoot(root)
 	if err != nil {
 		return "", err
 	}
 
+	return resolveTestDirFromConfig(root, cfg)
+}
+
+func readConfigFromRoot(root string) (miroconfig.Config, error) {
+	configPath := filepath.Join(root, "miro.toml")
+	return miroconfig.ReadConfig(configPath)
+}
+
+func resolveTestDirFromConfig(root string, cfg miroconfig.Config) (string, error) {
 	testDir := filepath.Join(root, cfg.TestDir)
 	info, err := os.Stat(testDir)
 	if err == nil {

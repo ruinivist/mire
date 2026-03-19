@@ -13,13 +13,18 @@ func TestReadConfig(t *testing.T) {
 		name        string
 		content     string
 		wantDir     string
+		wantSandbox map[string]string
 		wantErr     string
 		wantMissing bool
 	}{
 		{
-			name:    "with test dir",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n",
+			name:    "with test dir and sandbox",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nkey_word = \"value\"\n",
 			wantDir: "custom/suite",
+			wantSandbox: map[string]string{
+				"visible_home": "/home/test",
+				"key_word":     "value",
+			},
 		},
 		{
 			name:    "legacy top level key",
@@ -40,6 +45,31 @@ func TestReadConfig(t *testing.T) {
 			name:    "empty test dir",
 			content: "[miro]\ntest_dir = \"\"\n",
 			wantErr: "empty miro.test_dir",
+		},
+		{
+			name:    "without sandbox table",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n",
+			wantErr: "missing [sandbox] config",
+		},
+		{
+			name:    "without required visible home",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\n",
+			wantErr: "missing required sandbox.visible_home",
+		},
+		{
+			name:    "empty required visible home",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"\"\n",
+			wantErr: "empty sandbox.visible_home",
+		},
+		{
+			name:    "relative visible home",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"home/test\"\n",
+			wantErr: "sandbox.visible_home must be an absolute path",
+		},
+		{
+			name:    "invalid sandbox key",
+			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nKeyWord = \"value\"\n",
+			wantErr: "invalid sandbox key",
 		},
 		{
 			name:    "invalid toml",
@@ -83,6 +113,14 @@ func TestReadConfig(t *testing.T) {
 			if got.TestDir != tt.wantDir {
 				t.Fatalf("ReadConfig() TestDir = %q, want %q", got.TestDir, tt.wantDir)
 			}
+			if len(got.Sandbox) != len(tt.wantSandbox) {
+				t.Fatalf("ReadConfig() Sandbox = %#v, want %#v", got.Sandbox, tt.wantSandbox)
+			}
+			for key, want := range tt.wantSandbox {
+				if got.Sandbox[key] != want {
+					t.Fatalf("ReadConfig() Sandbox[%q] = %q, want %q", key, got.Sandbox[key], want)
+				}
+			}
 		})
 	}
 }
@@ -90,7 +128,14 @@ func TestReadConfig(t *testing.T) {
 func TestWriteConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "miro.toml")
 
-	if err := WriteConfig(path, Config{TestDir: "e2e"}); err != nil {
+	if err := WriteConfig(path, Config{
+		TestDir: "e2e",
+		Sandbox: map[string]string{
+			"visible_home": "/home/test",
+			"alpha_key":    "a",
+			"zulu_key":     "z",
+		},
+	}); err != nil {
 		t.Fatalf("WriteConfig() error = %v", err)
 	}
 
@@ -98,8 +143,9 @@ func TestWriteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	if string(got) != "[miro]\n  test_dir = \"e2e\"\n" {
-		t.Fatalf("config = %q, want %q", string(got), "[miro]\n  test_dir = \"e2e\"\n")
+	want := "[miro]\n  test_dir = \"e2e\"\n\n[sandbox]\n  alpha_key = \"a\"\n  visible_home = \"/home/test\"\n  zulu_key = \"z\"\n"
+	if string(got) != want {
+		t.Fatalf("config = %q, want %q", string(got), want)
 	}
 }
 
@@ -112,5 +158,20 @@ func TestWriteConfigEmptyTestDirFails(t *testing.T) {
 	}
 	if err.Error() != "empty miro.test_dir" {
 		t.Fatalf("WriteConfig() error = %q, want %q", err.Error(), "empty miro.test_dir")
+	}
+}
+
+func TestWriteConfigMissingRequiredSandboxFails(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "miro.toml")
+
+	err := WriteConfig(path, Config{
+		TestDir: "e2e",
+		Sandbox: map[string]string{},
+	})
+	if err == nil {
+		t.Fatal("WriteConfig() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "missing required sandbox.visible_home") {
+		t.Fatalf("WriteConfig() error = %q, want visible_home error", err.Error())
 	}
 }

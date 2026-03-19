@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -22,6 +23,17 @@ var recordShellTemplate = template.Must(
 
 func recordShellPath(testDir string) string {
 	return filepath.Join(testDir, recordShellName)
+}
+
+func ensureRecordShell(testDir string) error {
+	path := recordShellPath(testDir)
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to check recorder shell %q: %v", path, err)
+	}
+
+	return writeRecordShell(testDir)
 }
 
 func writeRecordShell(testDir string) error {
@@ -59,11 +71,9 @@ func resolveRecordShell(testDir string) (string, error) {
 func buildRecordShellScript() string {
 	var body bytes.Buffer
 	if err := recordShellTemplate.Execute(&body, struct {
-		VisibleHome string
-		GitDate     string
+		GitDate string
 	}{
-		VisibleHome: shQuote(recordVisibleHome),
-		GitDate:     shQuote(recordGitDate),
+		GitDate: shQuote(recordGitDate),
 	}); err != nil {
 		panic(fmt.Sprintf("render record shell template: %v", err))
 	}
@@ -71,15 +81,31 @@ func buildRecordShellScript() string {
 	return body.String()
 }
 
-func recordSessionEnv(sandbox recordSandbox) []string {
+func recordSessionEnv(sandbox recordSandbox, sandboxConfig map[string]string) []string {
 	env := append([]string{}, os.Environ()...)
 	env = append(env,
-		"MIRO_RECORD_HOST_HOME="+sandbox.hostHome,
-		"MIRO_RECORD_HOST_TMP="+sandbox.hostTmp,
-		"MIRO_RECORD_PATH_ENV="+sandbox.pathEnv,
+		"MIRO_HOST_HOME="+sandbox.hostHome,
+		"MIRO_HOST_TMP="+sandbox.hostTmp,
+		"MIRO_PATH_ENV="+sandbox.pathEnv,
 	)
+	for _, key := range sortedSandboxKeys(sandboxConfig) {
+		env = append(env, sandboxEnvName(key)+"="+sandboxConfig[key])
+	}
 
 	return env
+}
+
+func sandboxEnvName(key string) string {
+	return "MIRO_" + strings.ToUpper(key)
+}
+
+func sortedSandboxKeys(sandboxConfig map[string]string) []string {
+	keys := make([]string, 0, len(sandboxConfig))
+	for key := range sandboxConfig {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func shQuote(value string) string {

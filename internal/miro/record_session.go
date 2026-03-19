@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	recordVisibleHome = "/home/test"
-	recordGitDate     = "2024-01-01T00:00:00Z"
+	recordGitDate = "2024-01-01T00:00:00Z"
 )
 
 type recordIO struct {
@@ -22,7 +21,7 @@ type recordIO struct {
 	err io.Writer
 }
 
-func recordScenario(target, shellPath string, rio recordIO) error {
+func recordScenario(target, shellPath string, rio recordIO, sandboxConfig map[string]string) error {
 	rawIn, rawOut, cleanup, err := newRecordFiles()
 	if err != nil {
 		return err
@@ -45,7 +44,7 @@ func recordScenario(target, shellPath string, rio recordIO) error {
 
 	output.Fprintln(rio.err, "Run commands in the recorder shell, then type exit to finish.")
 
-	if err := runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio); err != nil {
+	if err := runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio, sandboxConfig); err != nil {
 		return err
 	}
 
@@ -123,10 +122,11 @@ func newRecordSandboxForPathEnv(pathEnv string) (recordSandbox, func(), error) {
 
 	return sandbox, cleanup, nil
 }
-func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbox, rio recordIO) error {
+
+func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbox, rio recordIO, sandboxConfig map[string]string) error {
 	cmd := exec.Command("script", "-q", "-E", "always", "-I", rawIn, "-O", rawOut, "-c", shellPath)
 	cmd.Dir = dir
-	cmd.Env = recordSessionEnv(sandbox)
+	cmd.Env = recordSessionEnv(sandbox, sandboxConfig)
 	cmd.Stdin = rio.in
 	cmd.Stdout = rio.out
 	cmd.Stderr = rio.err

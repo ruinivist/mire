@@ -2,11 +2,12 @@
 set -eu
 
 # Host directory mounted as the sandboxed HOME.
-host_home=${MIRO_RECORD_HOST_HOME:?}
+host_home=${MIRO_HOST_HOME:?}
 # Host temp directory mounted read-write inside the sandbox.
-host_tmp=${MIRO_RECORD_HOST_TMP:?}
+host_tmp=${MIRO_HOST_TMP:?}
 # PATH value forwarded into the sandbox so required tools stay available.
-path_env=${MIRO_RECORD_PATH_ENV:?}
+path_env=${MIRO_PATH_ENV:?}
+visible_home=${MIRO_VISIBLE_HOME:?}
 
 if command -v git >/dev/null 2>&1; then
   HOME="$host_home" GIT_CONFIG_NOSYSTEM=1 git config --global user.name 'Miro Test' >/dev/null 2>&1 || :
@@ -15,10 +16,10 @@ if command -v git >/dev/null 2>&1; then
   HOME="$host_home" GIT_CONFIG_NOSYSTEM=1 git config --global advice.defaultBranchName false >/dev/null 2>&1 || :
 fi
 
-exec bwrap \
+set -- \
   --ro-bind / / \
   --tmpfs /home \
-  --bind "$host_home" {{ .VisibleHome }} \
+  --bind "$host_home" "$visible_home" \
   --bind "$host_tmp" '/tmp' \
   --dev /dev \
   --proc /proc \
@@ -29,7 +30,7 @@ exec bwrap \
   --setenv GIT_CONFIG_NOSYSTEM '1' \
   --setenv GIT_PAGER 'cat' \
   --setenv HISTFILE '/dev/null' \
-  --setenv HOME {{ .VisibleHome }} \
+  --setenv HOME "$visible_home" \
   --setenv LANG 'C' \
   --setenv LC_ALL 'C' \
   --setenv PAGER 'cat' \
@@ -38,5 +39,6 @@ exec bwrap \
   --setenv TERM 'xterm-256color' \
   --setenv TMPDIR '/tmp' \
   --setenv TZ 'UTC' \
-  --chdir {{ .VisibleHome }} \
-  bash --noprofile --norc -i
+  --chdir "$visible_home"
+
+exec bwrap "$@" bash --noprofile --norc -i

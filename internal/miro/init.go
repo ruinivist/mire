@@ -28,6 +28,7 @@ func Init() error {
 	} else {
 		if err := miroconfig.WriteConfig(configPath, miroconfig.Config{
 			TestDir: defaultTestDir,
+			Sandbox: miroconfig.DefaultSandboxConfig(),
 		}); err != nil {
 			return fmt.Errorf("failed to write %s: %v", configPath, err)
 		}
@@ -38,5 +39,5 @@ func Init() error {
 		return err
 	}
 
-	return writeRecordShell(testDir)
+	return ensureRecordShell(testDir)
 }

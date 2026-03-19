@@ -19,8 +19,8 @@ func TestInitCreatesConfigAtProjectRoot(t *testing.T) {
 	})
 
 	got := readFile(t, filepath.Join(root, "miro.toml"))
-	if got != "[miro]\n  test_dir = \"e2e\"\n" {
-		t.Fatalf("config = %q, want %q", got, "[miro]\n  test_dir = \"e2e\"\n")
+	if got != defaultWrittenConfig("e2e") {
+		t.Fatalf("config = %q, want %q", got, defaultWrittenConfig("e2e"))
 	}
 	assertRecordShell(t, filepath.Join(root, "e2e", recordShellName))
 }
@@ -46,7 +46,7 @@ func TestInitUsesGitRoot(t *testing.T) {
 
 func TestInitLeavesExistingValidConfigUntouched(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("custom/suite"))
 	writeFile(t, filepath.Join(root, "custom", "suite", recordShellName), "outdated\n")
 
 	withWorkingDir(t, root, func() struct{} {
@@ -57,15 +57,17 @@ func TestInitLeavesExistingValidConfigUntouched(t *testing.T) {
 	})
 
 	got := readFile(t, filepath.Join(root, "miro.toml"))
-	if got != "[miro]\ntest_dir = \"custom/suite\"\n" {
-		t.Fatalf("config = %q, want %q", got, "[miro]\ntest_dir = \"custom/suite\"\n")
+	if got != validConfigContent("custom/suite") {
+		t.Fatalf("config = %q, want %q", got, validConfigContent("custom/suite"))
 	}
-	assertRecordShell(t, filepath.Join(root, "custom", "suite", recordShellName))
+	if got := readFile(t, filepath.Join(root, "custom", "suite", recordShellName)); got != "outdated\n" {
+		t.Fatalf("shell = %q, want existing shell to stay untouched", got)
+	}
 }
 
 func TestInitCreatesMissingConfiguredTestDir(t *testing.T) {
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("custom/suite"))
 
 	withWorkingDir(t, root, func() struct{} {
 		if err := Init(); err != nil {
@@ -96,7 +98,7 @@ func TestResolveTestDirFromConfig(t *testing.T) {
 	root := t.TempDir()
 	configured := filepath.Join(root, "custom", "suite")
 	mustMkdirAll(t, configured)
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"custom/suite\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("custom/suite"))
 
 	got := withWorkingDir(t, root, func() string {
 		path, err := ResolveTestDir()
@@ -181,7 +183,7 @@ func TestResolveTestDirMalformedConfigFails(t *testing.T) {
 func TestResolveTestDirConfiguredMissingDirectoryReturnsConfiguredPath(t *testing.T) {
 	root := t.TempDir()
 	want := filepath.Join(root, "missing")
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"missing\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("missing"))
 
 	got := withWorkingDir(t, root, func() string {
 		path, err := ResolveTestDir()
@@ -199,7 +201,7 @@ func TestResolveTestDirConfiguredMissingDirectoryReturnsConfiguredPath(t *testin
 func TestResolveTestDirConfiguredFileFails(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "case.txt"), "hello\n")
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"case.txt\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("case.txt"))
 
 	err := withWorkingDir(t, root, func() error {
 		_, err := ResolveTestDir()
@@ -218,7 +220,7 @@ func TestResolveTestDirUsesGitRoot(t *testing.T) {
 	root := t.TempDir()
 	mustGitInit(t, root)
 	want := filepath.Join(root, "e2e")
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
 	subdir := filepath.Join(root, "nested", "dir")
 	mustMkdirAll(t, subdir)
 
@@ -296,4 +298,12 @@ func assertRecordShell(t *testing.T, path string) {
 	if got := readFile(t, path); got != buildRecordShellScript() {
 		t.Fatalf("shell = %q, want generated recorder shell", got)
 	}
+}
+
+func defaultWrittenConfig(testDir string) string {
+	return "[miro]\n  test_dir = \"" + testDir + "\"\n\n[sandbox]\n  visible_home = \"/home/test\"\n"
+}
+
+func validConfigContent(testDir string) string {
+	return "[miro]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nvisible_home = \"/home/test\"\n"
 }

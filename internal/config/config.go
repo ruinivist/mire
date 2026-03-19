@@ -5,20 +5,38 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 
 	"github.com/BurntSushi/toml"
 )
 
+const DefaultVisibleHome = "/home/test"
+
+var (
+	lowerSnakeCasePattern   = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`)
+	requiredSandboxDefaults = map[string]string{
+		"visible_home": DefaultVisibleHome,
+	}
+)
+
 type Config struct {
 	TestDir string
+	Sandbox map[string]string
 }
 
 type tomlConfig struct {
-	Miro tomlMiroConfig `toml:"miro"`
+	Miro    tomlMiroConfig    `toml:"miro"`
+	Sandbox map[string]string `toml:"sandbox"`
 }
 
 type tomlMiroConfig struct {
 	TestDir string `toml:"test_dir"`
+}
+
+func DefaultSandboxConfig() map[string]string {
+	return cloneSandbox(requiredSandboxDefaults)
 }
 
 // ReadConfig reads miro.toml.
@@ -41,9 +59,18 @@ func ReadConfig(path string) (Config, error) {
 	if raw.Miro.TestDir == "" {
 		return Config{}, fmt.Errorf("failed to read %s: empty miro.test_dir", path)
 	}
+	if !meta.IsDefined("sandbox") {
+		return Config{}, fmt.Errorf("failed to read %s: missing [sandbox] config", path)
+	}
+
+	sandbox, err := validateSandbox(path, raw.Sandbox)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		TestDir: raw.Miro.TestDir,
+		Sandbox: sandbox,
 	}, nil
 }
 
@@ -52,15 +79,61 @@ func WriteConfig(path string, cfg Config) error {
 	if cfg.TestDir == "" {
 		return errors.New("empty miro.test_dir")
 	}
+	sandbox, err := validateSandbox(path, cfg.Sandbox)
+	if err != nil {
+		return err
+	}
 
 	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(tomlConfig{
-		Miro: tomlMiroConfig{
-			TestDir: cfg.TestDir,
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to encode %s: %v", path, err)
+	fmt.Fprintf(&buf, "[miro]\n  test_dir = %q\n\n[sandbox]\n", cfg.TestDir)
+
+	keys := make([]string, 0, len(sandbox))
+	for key := range sandbox {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Fprintf(&buf, "  %s = %q\n", key, sandbox[key])
 	}
 
 	return os.WriteFile(path, buf.Bytes(), 0o644)
+}
+
+func validateSandbox(path string, sandbox map[string]string) (map[string]string, error) {
+	validated := cloneSandbox(sandbox)
+
+	for key := range validated {
+		if !lowerSnakeCasePattern.MatchString(key) {
+			return nil, fmt.Errorf("failed to read %s: invalid sandbox key %q: must be lower_snake_case", path, key)
+		}
+	}
+
+	for key := range requiredSandboxDefaults {
+		value, ok := validated[key]
+		if !ok {
+			return nil, fmt.Errorf("failed to read %s: missing required sandbox.%s", path, key)
+		}
+		if value == "" {
+			return nil, fmt.Errorf("failed to read %s: empty sandbox.%s", path, key)
+		}
+	}
+
+	if !filepath.IsAbs(validated["visible_home"]) {
+		return nil, fmt.Errorf("failed to read %s: sandbox.visible_home must be an absolute path", path)
+	}
+
+	return validated, nil
+}
+
+func cloneSandbox(sandbox map[string]string) map[string]string {
+	if len(sandbox) == 0 {
+		return map[string]string{}
+	}
+
+	cloned := make(map[string]string, len(sandbox))
+	for key, value := range sandbox {
+		cloned[key] = value
+	}
+
+	return cloned
 }

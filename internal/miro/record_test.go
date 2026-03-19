@@ -15,7 +15,7 @@ func TestRecordCreatesRelativePath(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	mustMkdirAll(t, testDir)
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
 	addFakeRecordDependencies(t, "script")
 
@@ -51,7 +51,7 @@ func TestRecordAcceptsExplicitTestDirPrefix(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	mustMkdirAll(t, testDir)
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
 	addFakeRecordDependencies(t, "script")
 
@@ -83,7 +83,7 @@ func TestRecordAcceptsExplicitTestDirPrefix(t *testing.T) {
 func TestRecordRejectsAbsolutePathOutsideTestDir(t *testing.T) {
 	root := t.TempDir()
 	mustMkdirAll(t, filepath.Join(root, "e2e"))
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
 	outside := filepath.Join(root, "outside", "a", "b", "c")
 
 	err := withWorkingDir(t, root, func() error {
@@ -110,7 +110,7 @@ func TestRecordReturnsDiscardedErrorWhenSaveDeclined(t *testing.T) {
 		target := filepath.Join(testDir, "a", "b", "c")
 		mustMkdirAll(t, target)
 		return withRecordStreams(t, "n\n", func(rio recordIO) error {
-			return recordScenario(target, recordShellPath(testDir), rio)
+			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig())
 		})
 	})
 
@@ -138,7 +138,7 @@ func TestRecordReturnsDiscardedErrorWhenOverwriteDeclined(t *testing.T) {
 
 	err := withWorkingDir(t, root, func() error {
 		return withRecordStreams(t, "n\n", func(rio recordIO) error {
-			return recordScenario(target, recordShellPath(testDir), rio)
+			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig())
 		})
 	})
 
@@ -167,23 +167,61 @@ func TestBuildRecordShellScriptUsesExpectedCommands(t *testing.T) {
 	body := buildRecordShellScript()
 
 	for _, want := range []string{
-		"host_home=${MIRO_RECORD_HOST_HOME:?}",
-		"host_tmp=${MIRO_RECORD_HOST_TMP:?}",
-		"path_env=${MIRO_RECORD_PATH_ENV:?}",
+		"host_home=${MIRO_HOST_HOME:?}",
+		"host_tmp=${MIRO_HOST_TMP:?}",
+		"path_env=${MIRO_PATH_ENV:?}",
+		"visible_home=${MIRO_VISIBLE_HOME:?}",
 		"HOME=\"$host_home\" GIT_CONFIG_NOSYSTEM=1 git config --global user.name 'Miro Test'",
-		"--bind \"$host_home\" " + shQuote(recordVisibleHome),
+		"--bind \"$host_home\" \"$visible_home\"",
 		"--bind \"$host_tmp\" '/tmp'",
-		"--setenv HOME " + shQuote(recordVisibleHome),
+		"--setenv HOME \"$visible_home\"",
 		"--setenv PATH \"$path_env\"",
 		"--setenv PS1 '$ '",
 		"--setenv TERM 'xterm-256color'",
 		"--setenv TZ 'UTC'",
-		"--chdir " + shQuote(recordVisibleHome),
-		"bash --noprofile --norc -i",
+		"--chdir \"$visible_home\"",
+		"exec bwrap \"$@\" bash --noprofile --norc -i",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("wrapper = %q, want substring %q", body, want)
 		}
+	}
+	for _, unwanted := range []string{
+		"MIRO_SANDBOX_ENVS",
+		"set -- \"$@\" --setenv \"$env_name\" \"$env_value\"",
+	} {
+		if strings.Contains(body, unwanted) {
+			t.Fatalf("wrapper = %q, want no substring %q", body, unwanted)
+		}
+	}
+	if strings.Contains(body, "/home/test") {
+		t.Fatalf("wrapper = %q, want no hardcoded visible home", body)
+	}
+}
+
+func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
+	env := recordSessionEnv(recordSandbox{
+		hostHome: "/tmp/host-home",
+		hostTmp:  "/tmp/host-tmp",
+		pathEnv:  "/tmp/bin",
+	}, map[string]string{
+		"visible_home": "/sandbox/home",
+		"key_word":     "value",
+	})
+
+	for _, want := range []string{
+		"MIRO_HOST_HOME=/tmp/host-home",
+		"MIRO_HOST_TMP=/tmp/host-tmp",
+		"MIRO_PATH_ENV=/tmp/bin",
+		"MIRO_KEY_WORD=value",
+		"MIRO_VISIBLE_HOME=/sandbox/home",
+	} {
+		if !containsEnvEntry(env, want) {
+			t.Fatalf("env = %#v, want entry %q", env, want)
+		}
+	}
+	if containsEnvEntry(env, "MIRO_SANDBOX_ENVS=MIRO_KEY_WORD:MIRO_VISIBLE_HOME") {
+		t.Fatalf("env = %#v, want MIRO_SANDBOX_ENVS to be absent", env)
 	}
 }
 
@@ -205,7 +243,7 @@ func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
 
 	shellPath := recordShellPath(testDir)
 	err = withRecordStreams(t, "", func(rio recordIO) error {
-		return runRecordSession(t.TempDir(), filepath.Join(t.TempDir(), "raw.in"), filepath.Join(t.TempDir(), "raw.out"), shellPath, sandbox, rio)
+		return runRecordSession(t.TempDir(), filepath.Join(t.TempDir(), "raw.in"), filepath.Join(t.TempDir(), "raw.out"), shellPath, sandbox, rio, defaultSandboxConfig())
 	})
 	if err != nil {
 		t.Fatalf("runRecordSession() error = %v", err)
@@ -230,16 +268,20 @@ func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
 
 	body := readFile(t, commandBodyPath)
 	for _, want := range []string{
-		"host_home=${MIRO_RECORD_HOST_HOME:?}",
+		"host_home=${MIRO_HOST_HOME:?}",
+		"visible_home=${MIRO_VISIBLE_HOME:?}",
 		"--ro-bind / /",
 		"--tmpfs /home",
-		"--setenv HOME " + shQuote(recordVisibleHome),
+		"--setenv HOME \"$visible_home\"",
 		"--setenv TMPDIR '/tmp'",
-		"bash --noprofile --norc -i",
+		"exec bwrap \"$@\" bash --noprofile --norc -i",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("wrapper = %q, want substring %q", body, want)
 		}
+	}
+	if strings.Contains(body, "MIRO_SANDBOX_ENVS") {
+		t.Fatalf("wrapper = %q, want no MIRO_SANDBOX_ENVS reference", body)
 	}
 }
 
@@ -251,6 +293,11 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 	target := filepath.Join(testDir, "suite", "spec")
 	mustMkdirAll(t, target)
 	mustWriteRecordShell(t, testDir)
+	sandboxConfig := map[string]string{
+		"visible_home": "/home/test",
+		"key_word":     "value",
+	}
+	visibleHome := sandboxConfig["visible_home"]
 
 	reader, writer, err := os.Pipe()
 	if err != nil {
@@ -267,7 +314,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 		defer close(writeDone)
 		defer writer.Close()
 
-		if _, err := writer.Write([]byte("pwd\necho \"$HOME\"\nif [ -e /home/test/repo ]; then echo FOUND; else echo MISSING; fi\npwd\nexit\n")); err != nil {
+		if _, err := writer.Write([]byte("pwd\necho \"$HOME\"\necho \"$MIRO_KEY_WORD\"\nif [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\npwd\nexit\n")); err != nil {
 			writeDone <- err
 			return
 		}
@@ -287,7 +334,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 			in:  reader,
 			out: ioDiscard{},
 			err: &bytes.Buffer{},
-		})
+		}, sandboxConfig)
 	})
 	if err != nil {
 		t.Fatalf("recordScenario() error = %v", err)
@@ -300,7 +347,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 	if strings.Contains(recordedIn, "Script started on ") {
 		t.Fatalf("saved in = %q, want stripped script wrapper", recordedIn)
 	}
-	for _, want := range []string{"pwd\n", "echo \"$HOME\"\n", "if [ -e /home/test/repo ]; then echo FOUND; else echo MISSING; fi\n", "exit\n"} {
+	for _, want := range []string{"pwd\n", "echo \"$HOME\"\n", "echo \"$MIRO_KEY_WORD\"\n", "if [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\n", "exit\n"} {
 		if !strings.Contains(recordedIn, want) {
 			t.Fatalf("saved in = %q, want substring %q", recordedIn, want)
 		}
@@ -310,7 +357,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 	if strings.Contains(recordedOut, "Script started on ") {
 		t.Fatalf("saved out = %q, want stripped script wrapper", recordedOut)
 	}
-	for _, want := range []string{recordVisibleHome} {
+	for _, want := range []string{visibleHome, "value"} {
 		if !strings.Contains(recordedOut, want) {
 			t.Fatalf("saved out = %q, want substring %q", recordedOut, want)
 		}
@@ -326,7 +373,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
-	writeFile(t, filepath.Join(root, "miro.toml"), "[miro]\ntest_dir = \"e2e\"\n")
+	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
 	mustMkdirAll(t, testDir)
 	addFakeRecordDependencies(t, "script")
 
@@ -448,4 +495,20 @@ func mustWriteRecordShell(t *testing.T, testDir string) {
 	if err := writeRecordShell(testDir); err != nil {
 		t.Fatalf("writeRecordShell(%q) error = %v", testDir, err)
 	}
+}
+
+func defaultSandboxConfig() map[string]string {
+	return map[string]string{
+		"visible_home": "/home/test",
+	}
+}
+
+func containsEnvEntry(env []string, want string) bool {
+	for _, entry := range env {
+		if entry == want {
+			return true
+		}
+	}
+
+	return false
 }
