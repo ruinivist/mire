@@ -45,14 +45,14 @@ func (e TestSuiteFailedError) Error() string {
 }
 
 // RunTests replays all scenarios under the configured test directory.
-func RunTests() error {
-	return runTests(testIO{
+func RunTests(path string) error {
+	return runTests(path, testIO{
 		out: os.Stdout,
 		err: os.Stderr,
 	})
 }
 
-func runTests(tio testIO) error {
+func runTests(path string, tio testIO) error {
 	root, err := currentProjectRoot()
 	if err != nil {
 		return err
@@ -68,17 +68,22 @@ func runTests(tio testIO) error {
 		return fmt.Errorf("failed to resolve test directory: %v", err)
 	}
 
+	discoveryRoot, err := resolveTestDiscoveryRoot(testDir, path)
+	if err != nil {
+		return err
+	}
+
 	shellPath, err := resolveRecordShell(testDir)
 	if err != nil {
 		return err
 	}
 
-	scenarios, err := discoverTestScenarios(testDir)
+	scenarios, err := discoverTestScenarios(discoveryRoot, testDir)
 	if err != nil {
 		return err
 	}
 	if len(scenarios) == 0 {
-		return fmt.Errorf("no test scenarios found in %q", testDir)
+		return fmt.Errorf("no test scenarios found in %q", discoveryRoot)
 	}
 
 	summary := testSummary{total: len(scenarios)}
@@ -110,10 +115,34 @@ func runTests(tio testIO) error {
 	return nil
 }
 
-func discoverTestScenarios(testDir string) ([]testScenario, error) {
+func resolveTestDiscoveryRoot(testDir, path string) (string, error) {
+	if path == "" {
+		return testDir, nil
+	}
+
+	target, err := resolvePathWithinTestDir(testDir, path, "test")
+	if err != nil {
+		return "", err
+	}
+
+	info, err := os.Stat(target)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("test path %q does not exist", target)
+		}
+		return "", fmt.Errorf("failed to check test path %q: %v", target, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("test path %q is not a directory", target)
+	}
+
+	return target, nil
+}
+
+func discoverTestScenarios(discoveryRoot, displayRoot string) ([]testScenario, error) {
 	fixturesByDir := map[string]testFixtureFiles{}
 
-	if err := filepath.WalkDir(testDir, func(path string, d fs.DirEntry, walkErr error) error {
+	if err := filepath.WalkDir(discoveryRoot, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -137,12 +166,12 @@ func discoverTestScenarios(testDir string) ([]testScenario, error) {
 
 		return nil
 	}); err != nil {
-		return nil, fmt.Errorf("failed to scan test directory %q: %v", testDir, err)
+		return nil, fmt.Errorf("failed to scan test directory %q: %v", discoveryRoot, err)
 	}
 
 	scenarios := make([]testScenario, 0, len(fixturesByDir))
 	for dir, files := range fixturesByDir {
-		relPath, err := filepath.Rel(testDir, dir)
+		relPath, err := filepath.Rel(displayRoot, dir)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve scenario path for %q: %v", dir, err)
 		}

@@ -2,7 +2,6 @@ package miro
 
 import (
 	"bytes"
-	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,7 +14,7 @@ func TestDiscoverTestScenariosFindsNestedFixturesAndSorts(t *testing.T) {
 	writeFile(t, filepath.Join(testDir, "shell.sh"), "#!/bin/sh\n")
 	writeFile(t, filepath.Join(testDir, "notes.txt"), "ignore me\n")
 
-	got, err := discoverTestScenarios(testDir)
+	got, err := discoverTestScenarios(testDir, testDir)
 	if err != nil {
 		t.Fatalf("discoverTestScenarios() error = %v", err)
 	}
@@ -45,7 +44,7 @@ func TestDiscoverTestScenariosRejectsMissingOutFixture(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	writeFile(t, filepath.Join(testDir, "broken", "in"), "echo broken\n")
 
-	_, err := discoverTestScenarios(testDir)
+	_, err := discoverTestScenarios(testDir, testDir)
 	if err == nil {
 		t.Fatal("discoverTestScenarios() error = nil, want error")
 	}
@@ -58,7 +57,7 @@ func TestDiscoverTestScenariosRejectsMissingInFixture(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	writeFile(t, filepath.Join(testDir, "broken", "out"), "echo broken\n")
 
-	_, err := discoverTestScenarios(testDir)
+	_, err := discoverTestScenarios(testDir, testDir)
 	if err == nil {
 		t.Fatal("discoverTestScenarios() error = nil, want error")
 	}
@@ -133,47 +132,72 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 	}
 }
 
-func TestRunTestsRunsFullSuiteAndSummarizesFailures(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
-	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
+func TestDiscoverTestScenariosUsesDisplayRootForRelativePaths(t *testing.T) {
+	testDir := filepath.Join(t.TempDir(), "e2e")
+	scopedDir := filepath.Join(testDir, "nested")
+	writeScenarioFixtures(t, filepath.Join(scopedDir, "b"), "echo two\n", "echo two\n")
 
+	got, err := discoverTestScenarios(scopedDir, testDir)
+	if err != nil {
+		t.Fatalf("discoverTestScenarios() error = %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len(discoverTestScenarios()) = %d, want 1", len(got))
+	}
+	if got[0].relPath != filepath.Join("nested", "b") {
+		t.Fatalf("scenario relPath = %q, want %q", got[0].relPath, filepath.Join("nested", "b"))
+	}
+}
+
+func TestResolveTestDiscoveryRootRejectsMissingPath(t *testing.T) {
+	testDir := filepath.Join(t.TempDir(), "e2e")
+	mustMkdirAll(t, testDir)
+
+	_, err := resolveTestDiscoveryRoot(testDir, "missing")
+	if err == nil {
+		t.Fatal("resolveTestDiscoveryRoot() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), `does not exist`) {
+		t.Fatalf("resolveTestDiscoveryRoot() error = %q, want missing-path error", err.Error())
+	}
+}
+
+func TestResolveTestDiscoveryRootRejectsFile(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
+	writeFile(t, filepath.Join(testDir, "case.txt"), "hello\n")
+
+	err := withWorkingDir(t, root, func() error {
+		_, err := resolveTestDiscoveryRoot(testDir, filepath.Join("e2e", "case.txt"))
+		return err
+	})
+	if err == nil {
+		t.Fatal("resolveTestDiscoveryRoot() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), `is not a directory`) {
+		t.Fatalf("resolveTestDiscoveryRoot() error = %q, want directory error", err.Error())
+	}
+}
+
+func TestRunTestsScopedRunEmptyDirectoryFails(t *testing.T) {
+	root := t.TempDir()
+	testDir := filepath.Join(root, "e2e")
+	emptyDir := filepath.Join(testDir, "empty")
 	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
-	writeScenarioFixtures(t, filepath.Join(testDir, "a"), "echo one\n", "echo one\n")
-	writeScenarioFixtures(t, filepath.Join(testDir, "b"), "echo two\n", "different output\n")
+	mustMkdirAll(t, emptyDir)
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
 	err := withWorkingDir(t, root, func() error {
-		return runTests(testIO{
-			out: &stdout,
-			err: &stderr,
+		return runTests("empty", testIO{
+			out: &bytes.Buffer{},
+			err: &bytes.Buffer{},
 		})
 	})
-
-	var suiteErr TestSuiteFailedError
-	if !errors.As(err, &suiteErr) {
-		t.Fatalf("runTests() error = %v, want TestSuiteFailedError", err)
+	if err == nil {
+		t.Fatal("runTests() error = nil, want error")
 	}
-	if suiteErr.Failed != 1 {
-		t.Fatalf("TestSuiteFailedError.Failed = %d, want 1", suiteErr.Failed)
-	}
-
-	for _, want := range []string{
-		"RUN a",
-		"PASS a",
-		"RUN b",
-		"FAIL b: output differed",
-		"Summary: total=2 passed=1 failed=1",
-	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("stdout = %q, want substring %q", stdout.String(), want)
-		}
-	}
-	if stderr.String() != "" {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
+	if !strings.Contains(err.Error(), `no test scenarios found in "`) || !strings.Contains(err.Error(), filepath.Join("e2e", "empty")) {
+		t.Fatalf("runTests() error = %q, want empty-directory error", err.Error())
 	}
 }
 

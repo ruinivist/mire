@@ -239,6 +239,99 @@ func TestRunTest(t *testing.T) {
 	})
 }
 
+func TestRunTestScopedDirectory(t *testing.T) {
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
+	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
+
+	root := t.TempDir()
+	writeScenarioFixtures(t, filepath.Join(root, "e2e", "a"), "echo one\n", "echo one\n")
+	writeScenarioFixtures(t, filepath.Join(root, "e2e", "nested", "b"), "echo two\n", "echo two\n")
+	writeScenarioFixtures(t, filepath.Join(root, "e2e", "nested", "c"), "echo three\n", "echo three\n")
+
+	withWorkingDir(t, root, func() {
+		initStdout, initStderr := captureOutput(t, func() {
+			if got := Run([]string{"init"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+		if initStdout != prefixed("Done initialising...\n") {
+			t.Fatalf("stdout = %q, want %q", initStdout, prefixed("Done initialising...\n"))
+		}
+		if initStderr != "" {
+			t.Fatalf("stderr = %q, want empty", initStderr)
+		}
+
+		stdout, stderr := captureOutput(t, func() {
+			if got := Run([]string{"test", "nested"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+
+		for _, want := range []string{
+			"RUN nested/b",
+			"PASS nested/b",
+			"RUN nested/c",
+			"PASS nested/c",
+			"Summary: total=2 passed=2 failed=0",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("stdout = %q, want substring %q", stdout, want)
+			}
+		}
+		if strings.Contains(stdout, "RUN a") {
+			t.Fatalf("stdout = %q, want scoped run to exclude scenario outside nested", stdout)
+		}
+		if stderr != "" {
+			t.Fatalf("stderr = %q, want empty", stderr)
+		}
+	})
+}
+
+func TestRunTestScopedLeafDirectory(t *testing.T) {
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
+	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
+
+	root := t.TempDir()
+	writeScenarioFixtures(t, filepath.Join(root, "e2e", "a"), "echo one\n", "echo one\n")
+	writeScenarioFixtures(t, filepath.Join(root, "e2e", "nested", "b"), "echo two\n", "echo two\n")
+
+	withWorkingDir(t, root, func() {
+		initStdout, initStderr := captureOutput(t, func() {
+			if got := Run([]string{"init"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+		if initStdout != prefixed("Done initialising...\n") {
+			t.Fatalf("stdout = %q, want %q", initStdout, prefixed("Done initialising...\n"))
+		}
+		if initStderr != "" {
+			t.Fatalf("stderr = %q, want empty", initStderr)
+		}
+
+		stdout, stderr := captureOutput(t, func() {
+			if got := Run([]string{"test", filepath.Join("nested", "b")}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
+			}
+		})
+
+		for _, want := range []string{
+			"RUN nested/b",
+			"PASS nested/b",
+			"Summary: total=1 passed=1 failed=0",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Fatalf("stdout = %q, want substring %q", stdout, want)
+			}
+		}
+		if strings.Contains(stdout, "RUN a") {
+			t.Fatalf("stdout = %q, want scoped run to exclude scenario outside nested/b", stdout)
+		}
+		if stderr != "" {
+			t.Fatalf("stderr = %q, want empty", stderr)
+		}
+	})
+}
+
 func TestRunTestReturnsOneWhenScenarioMismatches(t *testing.T) {
 	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
@@ -398,6 +491,26 @@ func TestRunRecordMissingPath(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "miro record <path>") {
 		t.Fatalf("stderr = %q, want record usage", stderr)
+	}
+}
+
+func TestRunTestExtraArgs(t *testing.T) {
+	addFakeRecordDependencies(t, "script", "bwrap", "bash")
+
+	stdout, stderr := captureOutput(t, func() {
+		if got := Run([]string{"test", "a", "b"}); got != 1 {
+			t.Fatalf("Run() code = %d, want %d", got, 1)
+		}
+	})
+
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "accepts at most 1 arg(s), received 2") {
+		t.Fatalf("stderr = %q, want extra-arg error", stderr)
+	}
+	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "miro test [path]") {
+		t.Fatalf("stderr = %q, want test usage", stderr)
 	}
 }
 
