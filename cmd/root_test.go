@@ -328,7 +328,7 @@ func TestRunTestScopedLeafDirectory(t *testing.T) {
 	})
 }
 
-func TestRunTestReturnsOneWhenScenarioMismatches(t *testing.T) {
+func TestRunTestReturnsZeroWhenScenarioMismatches(t *testing.T) {
 	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
 
@@ -350,8 +350,8 @@ func TestRunTestReturnsOneWhenScenarioMismatches(t *testing.T) {
 		}
 
 		stdout, stderr := captureOutput(t, func() {
-			if got := Run([]string{"test"}); got != 1 {
-				t.Fatalf("Run() code = %d, want %d", got, 1)
+			if got := Run([]string{"test"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
 			}
 		})
 
@@ -366,8 +366,8 @@ func TestRunTestReturnsOneWhenScenarioMismatches(t *testing.T) {
 				t.Fatalf("stdout = %q, want substring %q", stdout, want)
 			}
 		}
-		if !strings.Contains(stderr, "1 scenario(s) failed") {
-			t.Fatalf("stderr = %q, want suite failure", stderr)
+		if stderr != "" {
+			t.Fatalf("stderr = %q, want empty", stderr)
 		}
 	})
 }
@@ -439,7 +439,7 @@ func TestRunTestFailsWhenFixtureMalformed(t *testing.T) {
 	})
 }
 
-func TestRunTestFailsWhenCompareMarkerMissing(t *testing.T) {
+func TestRunTestReturnsZeroWhenCompareMarkerMissing(t *testing.T) {
 	addFakeRecordDependencies(t, "script", "bwrap", "bash")
 	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
 
@@ -450,8 +450,8 @@ func TestRunTestFailsWhenCompareMarkerMissing(t *testing.T) {
 
 	withWorkingDir(t, root, func() {
 		stdout, stderr := captureOutput(t, func() {
-			if got := Run([]string{"test"}); got != 1 {
-				t.Fatalf("Run() code = %d, want %d", got, 1)
+			if got := Run([]string{"test"}); got != 0 {
+				t.Fatalf("Run() code = %d, want %d", got, 0)
 			}
 		})
 
@@ -464,8 +464,8 @@ func TestRunTestFailsWhenCompareMarkerMissing(t *testing.T) {
 				t.Fatalf("stdout = %q, want substring %q", stdout, want)
 			}
 		}
-		if !strings.Contains(stderr, "1 scenario(s) failed") {
-			t.Fatalf("stderr = %q, want suite failure", stderr)
+		if stderr != "" {
+			t.Fatalf("stderr = %q, want empty", stderr)
 		}
 	})
 }

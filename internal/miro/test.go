@@ -36,14 +36,6 @@ type testFixtureFiles struct {
 	outPath string
 }
 
-type TestSuiteFailedError struct {
-	Failed int
-}
-
-func (e TestSuiteFailedError) Error() string {
-	return fmt.Sprintf("%d scenario(s) failed", e.Failed)
-}
-
 // RunTests replays all scenarios under the configured test directory.
 func RunTests(path string) error {
 	return runTests(path, testIO{
@@ -113,10 +105,6 @@ func runTests(path string, tio testIO) error {
 			summaryColor,
 		),
 	)
-
-	if summary.failed > 0 {
-		return TestSuiteFailedError{Failed: summary.failed}
-	}
 
 	return nil
 }
