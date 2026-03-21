@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"miro/internal/testutil"
 )
 
 func TestFormatElapsed(t *testing.T) {
@@ -30,10 +32,10 @@ func TestFormatElapsed(t *testing.T) {
 
 func TestDiscoverTestScenariosFindsNestedFixturesAndSorts(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
-	writeScenarioFixtures(t, filepath.Join(testDir, "nested", "b"), "echo two\n", "echo two\n")
-	writeScenarioFixtures(t, filepath.Join(testDir, "a"), "echo one\n", "echo one\n")
-	writeFile(t, filepath.Join(testDir, "shell.sh"), "#!/bin/sh\n")
-	writeFile(t, filepath.Join(testDir, "notes.txt"), "ignore me\n")
+	testutil.WriteScenarioFixtures(t, filepath.Join(testDir, "nested", "b"), "echo two\n", "echo two\n")
+	testutil.WriteScenarioFixtures(t, filepath.Join(testDir, "a"), "echo one\n", "echo one\n")
+	testutil.WriteFile(t, filepath.Join(testDir, "shell.sh"), "#!/bin/sh\n")
+	testutil.WriteFile(t, filepath.Join(testDir, "notes.txt"), "ignore me\n")
 
 	got, err := discoverTestScenarios(testDir, testDir)
 	if err != nil {
@@ -63,7 +65,7 @@ func TestDiscoverTestScenariosFindsNestedFixturesAndSorts(t *testing.T) {
 
 func TestDiscoverTestScenariosRejectsMissingOutFixture(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
-	writeFile(t, filepath.Join(testDir, "broken", "in"), "echo broken\n")
+	testutil.WriteFile(t, filepath.Join(testDir, "broken", "in"), "echo broken\n")
 
 	_, err := discoverTestScenarios(testDir, testDir)
 	if err == nil {
@@ -76,7 +78,7 @@ func TestDiscoverTestScenariosRejectsMissingOutFixture(t *testing.T) {
 
 func TestDiscoverTestScenariosRejectsMissingInFixture(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
-	writeFile(t, filepath.Join(testDir, "broken", "out"), "echo broken\n")
+	testutil.WriteFile(t, filepath.Join(testDir, "broken", "out"), "echo broken\n")
 
 	_, err := discoverTestScenarios(testDir, testDir)
 	if err == nil {
@@ -88,14 +90,14 @@ func TestDiscoverTestScenariosRejectsMissingInFixture(t *testing.T) {
 }
 
 func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	testutil.AddFakeRecordDependencies(t, "script")
 	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
 
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	shellPath := filepath.Join(testDir, "shell.sh")
 	mustWriteRecordShell(t, testDir)
 	scenarioDir := filepath.Join(testDir, "suite", "spec")
-	writeScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
+	testutil.WriteScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
 
 	capturedInput := filepath.Join(t.TempDir(), "stdin.capture")
 	t.Setenv("FAKE_SCRIPT_CAPTURE_STDIN_FILE", capturedInput)
@@ -115,7 +117,7 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 		t.Fatalf("replayScenario() error = %v", err)
 	}
 
-	if got := readFile(t, capturedInput); got != "echo replay\nexit\n" {
+	if got := testutil.ReadFile(t, capturedInput); got != "echo replay\nexit\n" {
 		t.Fatalf("captured stdin = %q, want recorded input", got)
 	}
 	if stdout.String() != "" {
@@ -127,14 +129,14 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 }
 
 func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
-	addFakeRecordDependencies(t, "script")
+	testutil.AddFakeRecordDependencies(t, "script")
 	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
 
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	shellPath := filepath.Join(testDir, "shell.sh")
-	writeFile(t, shellPath, "#!/bin/sh\n")
+	testutil.WriteFile(t, shellPath, "#!/bin/sh\n")
 	scenarioDir := filepath.Join(testDir, "suite", "spec")
-	writeScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
+	testutil.WriteScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
 
 	err := replayScenario(testScenario{
 		dir:     scenarioDir,
@@ -156,7 +158,7 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 func TestDiscoverTestScenariosUsesDisplayRootForRelativePaths(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	scopedDir := filepath.Join(testDir, "nested")
-	writeScenarioFixtures(t, filepath.Join(scopedDir, "b"), "echo two\n", "echo two\n")
+	testutil.WriteScenarioFixtures(t, filepath.Join(scopedDir, "b"), "echo two\n", "echo two\n")
 
 	got, err := discoverTestScenarios(scopedDir, testDir)
 	if err != nil {
@@ -172,7 +174,7 @@ func TestDiscoverTestScenariosUsesDisplayRootForRelativePaths(t *testing.T) {
 
 func TestResolveTestDiscoveryRootRejectsMissingPath(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
-	mustMkdirAll(t, testDir)
+	testutil.MustMkdirAll(t, testDir)
 
 	_, err := resolveTestDiscoveryRoot(testDir, "missing")
 	if err == nil {
@@ -186,9 +188,9 @@ func TestResolveTestDiscoveryRootRejectsMissingPath(t *testing.T) {
 func TestResolveTestDiscoveryRootRejectsFile(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
-	writeFile(t, filepath.Join(testDir, "case.txt"), "hello\n")
+	testutil.WriteFile(t, filepath.Join(testDir, "case.txt"), "hello\n")
 
-	err := withWorkingDir(t, root, func() error {
+	err := testutil.WithWorkingDir(t, root, func() error {
 		_, err := resolveTestDiscoveryRoot(testDir, filepath.Join("e2e", "case.txt"))
 		return err
 	})
@@ -204,11 +206,11 @@ func TestRunTestsScopedRunEmptyDirectoryFails(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	emptyDir := filepath.Join(testDir, "empty")
-	writeFile(t, filepath.Join(root, "miro.toml"), validConfigContent("e2e"))
+	testutil.WriteFile(t, filepath.Join(root, "miro.toml"), testutil.ValidConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
-	mustMkdirAll(t, emptyDir)
+	testutil.MustMkdirAll(t, emptyDir)
 
-	err := withWorkingDir(t, root, func() error {
+	err := testutil.WithWorkingDir(t, root, func() error {
 		return runTests("empty", testIO{
 			out: &bytes.Buffer{},
 			err: &bytes.Buffer{},
@@ -220,11 +222,4 @@ func TestRunTestsScopedRunEmptyDirectoryFails(t *testing.T) {
 	if !strings.Contains(err.Error(), `no test scenarios found in "`) || !strings.Contains(err.Error(), filepath.Join("e2e", "empty")) {
 		t.Fatalf("runTests() error = %q, want empty-directory error", err.Error())
 	}
-}
-
-func writeScenarioFixtures(t *testing.T, dir, in, out string) {
-	t.Helper()
-
-	writeFile(t, filepath.Join(dir, "in"), in)
-	writeFile(t, filepath.Join(dir, "out"), out)
 }

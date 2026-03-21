@@ -5,13 +5,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"miro/internal/testutil"
 )
 
 func TestResolvePathWithinTestDirAcceptsRelativePath(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 
-	got := withWorkingDir(t, root, func() string {
+	got := testutil.WithWorkingDir(t, root, func() string {
 		path, err := resolvePathWithinTestDir(testDir, filepath.Join("suite", "spec"), "record")
 		if err != nil {
 			t.Fatalf("resolvePathWithinTestDir() error = %v", err)
@@ -29,7 +31,7 @@ func TestResolvePathWithinTestDirAcceptsExplicitTestDirPrefix(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 
-	got := withWorkingDir(t, root, func() string {
+	got := testutil.WithWorkingDir(t, root, func() string {
 		path, err := resolvePathWithinTestDir(testDir, filepath.Join("e2e", "suite", "spec"), "record")
 		if err != nil {
 			t.Fatalf("resolvePathWithinTestDir() error = %v", err)
@@ -74,9 +76,9 @@ func TestResolvePathWithinTestDirRejectsAbsolutePathOutsideTestDir(t *testing.T)
 func TestResolvePathWithinTestDirAllowsPathCurrentDirectory(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
-	mustMkdirAll(t, testDir)
+	testutil.MustMkdirAll(t, testDir)
 
-	got := withWorkingDir(t, testDir, func() string {
+	got := testutil.WithWorkingDir(t, testDir, func() string {
 		path, err := resolvePathWithinTestDir(testDir, ".", "record")
 		if err != nil {
 			t.Fatalf("resolvePathWithinTestDir() error = %v", err)

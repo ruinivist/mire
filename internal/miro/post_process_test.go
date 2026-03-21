@@ -3,11 +3,13 @@ package miro
 import (
 	"path/filepath"
 	"testing"
+
+	"miro/internal/testutil"
 )
 
 func TestLoadRecordedInputTrimsTrailingNewlineAfterEOF(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "in")
-	writeFile(t, path, "echo hi\r"+string([]byte{eofByte})+"\n")
+	testutil.WriteFile(t, path, "echo hi\r"+string([]byte{eofByte})+"\n")
 
 	got, err := loadRecordedInput(path)
 	if err != nil {
@@ -22,7 +24,7 @@ func TestLoadRecordedInputTrimsTrailingNewlineAfterEOF(t *testing.T) {
 
 func TestLoadRecordedInputTrimsTrailingNewlineAfterCarriageReturn(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "in")
-	writeFile(t, path, "echo hi\rexit\r\n")
+	testutil.WriteFile(t, path, "echo hi\rexit\r\n")
 
 	got, err := loadRecordedInput(path)
 	if err != nil {
@@ -37,7 +39,7 @@ func TestLoadRecordedInputTrimsTrailingNewlineAfterCarriageReturn(t *testing.T) 
 
 func TestLoadRecordedInputLeavesNormalTrailingNewline(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "in")
-	writeFile(t, path, "echo hi\n")
+	testutil.WriteFile(t, path, "echo hi\n")
 
 	got, err := loadRecordedInput(path)
 	if err != nil {
