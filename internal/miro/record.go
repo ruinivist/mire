@@ -37,11 +37,16 @@ func Record(path string) (string, error) {
 		return "", err
 	}
 
+	setupScripts, err := discoverSetupScripts(testDir, target)
+	if err != nil {
+		return "", err
+	}
+
 	if err := recordScenario(target, shellPath, recordIO{
 		in:  os.Stdin,
 		out: os.Stdout,
 		err: os.Stderr,
-	}, cfg.Sandbox); err != nil {
+	}, cfg.Sandbox, setupScripts); err != nil {
 		return "", err
 	}
 

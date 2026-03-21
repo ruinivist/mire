@@ -20,10 +20,11 @@ type testIO struct {
 }
 
 type testScenario struct {
-	dir     string
-	relPath string
-	inPath  string
-	outPath string
+	dir          string
+	relPath      string
+	inPath       string
+	outPath      string
+	setupScripts []string
 }
 
 type testSummary struct {
@@ -181,6 +182,10 @@ func discoverTestScenarios(discoveryRoot, displayRoot string) ([]testScenario, e
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve scenario path for %q: %v", dir, err)
 		}
+		setupScripts, err := discoverSetupScripts(displayRoot, dir)
+		if err != nil {
+			return nil, err
+		}
 
 		switch {
 		case files.inPath == "":
@@ -190,10 +195,11 @@ func discoverTestScenarios(discoveryRoot, displayRoot string) ([]testScenario, e
 		}
 
 		scenarios = append(scenarios, testScenario{
-			dir:     dir,
-			relPath: relPath,
-			inPath:  files.inPath,
-			outPath: files.outPath,
+			dir:          dir,
+			relPath:      relPath,
+			inPath:       files.inPath,
+			outPath:      files.outPath,
+			setupScripts: setupScripts,
 		})
 	}
 
@@ -222,9 +228,9 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 	}
 	defer cleanupSandbox()
 
-	cmd := exec.Command("script", "-q", "-E", "always", "-O", rawOut, "-c", shellPath)
+	cmd := exec.Command("script", "-q", "-e", "-E", "always", "-O", rawOut, "-c", shellPath)
 	cmd.Dir = scenario.dir
-	cmd.Env = recordSessionEnvWithExtra(sandbox, sandboxConfig, map[string]string{
+	cmd.Env = recordSessionEnvWithExtra(sandbox, sandboxConfig, scenario.setupScripts, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
 	cmd.Stdin = bytes.NewReader(input)

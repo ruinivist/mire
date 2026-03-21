@@ -59,7 +59,7 @@ func TestRecordReturnsDiscardedErrorWhenSaveDeclined(t *testing.T) {
 		target := filepath.Join(testDir, "a", "b", "c")
 		testutil.MustMkdirAll(t, target)
 		return withRecordStreams(t, "n\n", func(rio recordIO) error {
-			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig())
+			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil)
 		})
 	})
 
@@ -87,7 +87,7 @@ func TestRecordReturnsDiscardedErrorWhenOverwriteDeclined(t *testing.T) {
 
 	err := testutil.WithWorkingDir(t, root, func() error {
 		return withRecordStreams(t, "n\n", func(rio recordIO) error {
-			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig())
+			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil)
 		})
 	})
 
@@ -120,6 +120,17 @@ func TestBuildRecordShellScriptUsesExpectedCommands(t *testing.T) {
 		"host_tmp=${MIRO_HOST_TMP:?}",
 		"path_env=${MIRO_PATH_ENV:?}",
 		"visible_home=${MIRO_VISIBLE_HOME:?}",
+		"bootstrap_rc=\"$host_home/.miro-shell-rc\"",
+		"setup_scripts_dir='/tmp/miro-setup-scripts'",
+		"visible_bootstrap_rc=\"$visible_home/.miro-shell-rc\"",
+		"for path in /tmp/miro-setup-scripts/*.sh; do",
+		"source \"$path\"",
+		`if [ -n "${MIRO_SETUP_SCRIPTS:-}" ]; then`,
+		"i=1",
+		`while IFS= read -r host_path || [ -n "$host_path" ]; do`,
+		`visible_path=$(printf '%s/%03d.sh' "$setup_scripts_dir" "$i")`,
+		`set -- "$@" --ro-bind "$host_path" "$visible_path"`,
+		"${MIRO_SETUP_SCRIPTS-}",
 		`if [ "${MIRO_COMPARE_MARKER:-0}" = "1" ]; then`,
 		"printf '__MIRO_E2E_BEGIN__\\n'",
 		"--bind \"$host_home\" \"$visible_home\"",
@@ -130,7 +141,7 @@ func TestBuildRecordShellScriptUsesExpectedCommands(t *testing.T) {
 		"--setenv TERM 'xterm-256color'",
 		"--setenv TZ 'UTC'",
 		"--chdir \"$visible_home\"",
-		"exec bwrap \"$@\" bash --noprofile --norc -i",
+		"exec bwrap \"$@\" bash --noprofile --rcfile \"$visible_bootstrap_rc\" -i",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("wrapper = %q, want substring %q", body, want)
@@ -146,7 +157,7 @@ func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
 	}, map[string]string{
 		"visible_home": "/sandbox/home",
 		"key_word":     "value",
-	})
+	}, []string{"/repo/e2e/setup.sh", "/repo/e2e/suite/setup.sh"})
 
 	for _, want := range []string{
 		"MIRO_HOST_HOME=/tmp/host-home",
@@ -154,10 +165,14 @@ func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
 		"MIRO_PATH_ENV=/tmp/bin",
 		"MIRO_KEY_WORD=value",
 		"MIRO_VISIBLE_HOME=/sandbox/home",
+		"MIRO_SETUP_SCRIPTS=/repo/e2e/setup.sh\n/repo/e2e/suite/setup.sh",
 	} {
 		if !containsEnvEntry(env, want) {
 			t.Fatalf("env = %#v, want entry %q", env, want)
 		}
+	}
+	if containsEnvKey(env, "MIRO_SETUP_SCRIPT_BINDS") {
+		t.Fatalf("env = %#v, want MIRO_SETUP_SCRIPT_BINDS omitted", env)
 	}
 }
 
@@ -168,7 +183,7 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 		pathEnv:  "/tmp/bin",
 	}, map[string]string{
 		"visible_home": "/sandbox/home",
-	}, map[string]string{
+	}, []string{"/repo/e2e/setup.sh"}, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
 
@@ -177,11 +192,15 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 		"MIRO_HOST_TMP=/tmp/host-tmp",
 		"MIRO_PATH_ENV=/tmp/bin",
 		"MIRO_VISIBLE_HOME=/sandbox/home",
+		"MIRO_SETUP_SCRIPTS=/repo/e2e/setup.sh",
 		"MIRO_COMPARE_MARKER=1",
 	} {
 		if !containsEnvEntry(env, want) {
 			t.Fatalf("env = %#v, want entry %q", env, want)
 		}
+	}
+	if containsEnvKey(env, "MIRO_SETUP_SCRIPT_BINDS") {
+		t.Fatalf("env = %#v, want MIRO_SETUP_SCRIPT_BINDS omitted", env)
 	}
 }
 
@@ -203,40 +222,46 @@ func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
 
 	shellPath := recordShellPath(testDir)
 	err = withRecordStreams(t, "", func(rio recordIO) error {
-		return runRecordSession(t.TempDir(), filepath.Join(t.TempDir(), "raw.in"), filepath.Join(t.TempDir(), "raw.out"), shellPath, sandbox, rio, defaultSandboxConfig())
+		return runRecordSession(t.TempDir(), filepath.Join(t.TempDir(), "raw.in"), filepath.Join(t.TempDir(), "raw.out"), shellPath, sandbox, rio, defaultSandboxConfig(), []string{"/repo/e2e/setup.sh"})
 	})
 	if err != nil {
 		t.Fatalf("runRecordSession() error = %v", err)
 	}
 
 	args := strings.Split(strings.TrimSpace(testutil.ReadFile(t, argsPath)), "\n")
-	if len(args) != 9 {
-		t.Fatalf("script args = %q, want 9 args", args)
+	if len(args) != 10 {
+		t.Fatalf("script args = %q, want 10 args", args)
 	}
-	if got := args[:4]; strings.Join(got, "\n") != strings.Join([]string{"-q", "-E", "always", "-I"}, "\n") {
-		t.Fatalf("script args prefix = %q, want %q", got, []string{"-q", "-E", "always", "-I"})
+	if got := args[:5]; strings.Join(got, "\n") != strings.Join([]string{"-q", "-e", "-E", "always", "-I"}, "\n") {
+		t.Fatalf("script args prefix = %q, want %q", got, []string{"-q", "-e", "-E", "always", "-I"})
 	}
-	if args[5] != "-O" {
-		t.Fatalf("script args[5] = %q, want %q", args[5], "-O")
+	if args[6] != "-O" {
+		t.Fatalf("script args[6] = %q, want %q", args[6], "-O")
 	}
-	if args[7] != "-c" {
-		t.Fatalf("script args[7] = %q, want %q", args[7], "-c")
+	if args[8] != "-c" {
+		t.Fatalf("script args[8] = %q, want %q", args[8], "-c")
 	}
-	if args[8] != shellPath {
-		t.Fatalf("script args[8] = %q, want %q", args[8], shellPath)
+	if args[9] != shellPath {
+		t.Fatalf("script args[9] = %q, want %q", args[9], shellPath)
 	}
 
 	body := testutil.ReadFile(t, commandBodyPath)
 	for _, want := range []string{
 		"host_home=${MIRO_HOST_HOME:?}",
 		"visible_home=${MIRO_VISIBLE_HOME:?}",
+		"bootstrap_rc=\"$host_home/.miro-shell-rc\"",
+		"visible_bootstrap_rc=\"$visible_home/.miro-shell-rc\"",
+		"for path in /tmp/miro-setup-scripts/*.sh; do",
+		"source \"$path\"",
+		`if [ -n "${MIRO_SETUP_SCRIPTS:-}" ]; then`,
+		`set -- "$@" --ro-bind "$host_path" "$visible_path"`,
 		`if [ "${MIRO_COMPARE_MARKER:-0}" = "1" ]; then`,
 		"printf '__MIRO_E2E_BEGIN__\\n'",
 		"--ro-bind / /",
 		"--tmpfs /home",
 		"--setenv HOME \"$visible_home\"",
 		"--setenv TMPDIR '/tmp'",
-		"exec bwrap \"$@\" bash --noprofile --norc -i",
+		"exec bwrap \"$@\" bash --noprofile --rcfile \"$visible_bootstrap_rc\" -i",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("wrapper = %q, want substring %q", body, want)
@@ -293,7 +318,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 			in:  reader,
 			out: ioDiscard{},
 			err: &bytes.Buffer{},
-		}, sandboxConfig)
+		}, sandboxConfig, nil)
 	})
 	if err != nil {
 		t.Fatalf("recordScenario() error = %v", err)

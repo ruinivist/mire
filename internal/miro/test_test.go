@@ -105,10 +105,11 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	err := replayScenario(testScenario{
-		dir:     scenarioDir,
-		relPath: filepath.Join("suite", "spec"),
-		inPath:  filepath.Join(scenarioDir, "in"),
-		outPath: filepath.Join(scenarioDir, "out"),
+		dir:          scenarioDir,
+		relPath:      filepath.Join("suite", "spec"),
+		inPath:       filepath.Join(scenarioDir, "in"),
+		outPath:      filepath.Join(scenarioDir, "out"),
+		setupScripts: nil,
 	}, shellPath, testIO{
 		out: &stdout,
 		err: &stderr,
@@ -139,10 +140,11 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 	testutil.WriteScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
 
 	err := replayScenario(testScenario{
-		dir:     scenarioDir,
-		relPath: filepath.Join("suite", "spec"),
-		inPath:  filepath.Join(scenarioDir, "in"),
-		outPath: filepath.Join(scenarioDir, "out"),
+		dir:          scenarioDir,
+		relPath:      filepath.Join("suite", "spec"),
+		inPath:       filepath.Join(scenarioDir, "in"),
+		outPath:      filepath.Join(scenarioDir, "out"),
+		setupScripts: nil,
 	}, shellPath, testIO{
 		out: &bytes.Buffer{},
 		err: &bytes.Buffer{},
@@ -158,6 +160,7 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 func TestDiscoverTestScenariosUsesDisplayRootForRelativePaths(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	scopedDir := filepath.Join(testDir, "nested")
+	testutil.WriteFile(t, filepath.Join(testDir, setupScriptName), "export ROOT=1\n")
 	testutil.WriteScenarioFixtures(t, filepath.Join(scopedDir, "b"), "echo two\n", "echo two\n")
 
 	got, err := discoverTestScenarios(scopedDir, testDir)
@@ -169,6 +172,9 @@ func TestDiscoverTestScenariosUsesDisplayRootForRelativePaths(t *testing.T) {
 	}
 	if got[0].relPath != filepath.Join("nested", "b") {
 		t.Fatalf("scenario relPath = %q, want %q", got[0].relPath, filepath.Join("nested", "b"))
+	}
+	if len(got[0].setupScripts) != 1 || got[0].setupScripts[0] != filepath.Join(testDir, setupScriptName) {
+		t.Fatalf("scenario setupScripts = %#v, want root setup", got[0].setupScripts)
 	}
 }
 

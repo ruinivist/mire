@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"miro/internal/testutil"
@@ -72,6 +73,17 @@ func defaultSandboxConfig() map[string]string {
 func containsEnvEntry(env []string, want string) bool {
 	for _, entry := range env {
 		if entry == want {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsEnvKey(env []string, key string) bool {
+	prefix := key + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
 			return true
 		}
 	}

@@ -79,16 +79,17 @@ func buildRecordShellScript() string {
 	return string(body)
 }
 
-func recordSessionEnv(sandbox recordSandbox, sandboxConfig map[string]string) []string {
-	return recordSessionEnvWithExtra(sandbox, sandboxConfig, nil)
+func recordSessionEnv(sandbox recordSandbox, sandboxConfig map[string]string, setupScripts []string) []string {
+	return recordSessionEnvWithExtra(sandbox, sandboxConfig, setupScripts, nil)
 }
 
-func recordSessionEnvWithExtra(sandbox recordSandbox, sandboxConfig, extraEnv map[string]string) []string {
+func recordSessionEnvWithExtra(sandbox recordSandbox, sandboxConfig map[string]string, setupScripts []string, extraEnv map[string]string) []string {
 	env := append([]string{}, os.Environ()...)
 	env = append(env,
 		"MIRO_HOST_HOME="+sandbox.hostHome,
 		"MIRO_HOST_TMP="+sandbox.hostTmp,
 		"MIRO_PATH_ENV="+sandbox.pathEnv,
+		setupScriptsEnvName+"="+strings.Join(setupScripts, "\n"),
 	)
 	for _, key := range sortedKeys(sandboxConfig) {
 		env = append(env, sandboxEnvName(key)+"="+sandboxConfig[key])
