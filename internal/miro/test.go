@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"miro/internal/output"
 )
@@ -82,14 +83,17 @@ func runTests(path string, tio testIO) error {
 	for _, scenario := range scenarios {
 		output.Fprintf(tio.out, "%s %s\n", output.Label("RUN", output.Info), scenario.relPath)
 
+		start := time.Now()
 		if err := replayScenario(scenario, shellPath, tio, cfg.Sandbox); err != nil {
+			elapsed := time.Since(start).Seconds()
 			summary.failed++
-			output.Fprintf(tio.out, "%s %s: %v\n", output.Label("FAIL", output.Fail), scenario.relPath, err)
+			output.Fprintf(tio.out, "%s %s in %.3f seconds: %v\n", output.Label("FAIL", output.Fail), scenario.relPath, elapsed, err)
 			continue
 		}
 
+		elapsed := time.Since(start).Seconds()
 		summary.passed++
-		output.Fprintf(tio.out, "%s %s\n", output.Label("PASS", output.Pass), scenario.relPath)
+		output.Fprintf(tio.out, "%s %s in %.3f seconds\n", output.Label("PASS", output.Pass), scenario.relPath, elapsed)
 	}
 
 	summaryColor := output.Pass
