@@ -204,7 +204,7 @@ func discoverTestScenarios(discoveryRoot, displayRoot string) ([]testScenario, e
 	return scenarios, nil
 }
 
-func replayScenario(scenario testScenario, shellPath string, tio testIO, sandboxConfig map[string]string) error {
+func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxConfig map[string]string) error {
 	input, err := loadRecordedInput(scenario.inPath)
 	if err != nil {
 		return fmt.Errorf("failed to read recorded input: %v", err)

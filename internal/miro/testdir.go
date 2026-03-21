@@ -44,7 +44,7 @@ func resolveTestDirFromConfig(root string, cfg miroconfig.Config) (string, error
 		}
 		return testDir, nil
 	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("failed to check test directory %s: %v", testDir, err)
 	}
 
