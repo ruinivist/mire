@@ -19,7 +19,7 @@ func TestReadConfig(t *testing.T) {
 	}{
 		{
 			name:    "with test dir and sandbox",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nkey_word = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nkey_word = \"value\"\n",
 			wantDir: "custom/suite",
 			wantSandbox: map[string]string{
 				"visible_home": "/home/test",
@@ -29,51 +29,51 @@ func TestReadConfig(t *testing.T) {
 		{
 			name:    "legacy top level key",
 			content: "test_dir = \"custom/suite\"\n",
-			wantErr: "missing [miro] config",
+			wantErr: "missing [mire] config",
 		},
 		{
-			name:    "without miro table",
+			name:    "without mire table",
 			content: "",
-			wantErr: "missing [miro] config",
+			wantErr: "missing [mire] config",
 		},
 		{
 			name:    "without test dir",
-			content: "[miro]\n",
-			wantErr: "missing required miro.test_dir",
+			content: "[mire]\n",
+			wantErr: "missing required mire.test_dir",
 		},
 		{
 			name:    "empty test dir",
-			content: "[miro]\ntest_dir = \"\"\n",
-			wantErr: "empty miro.test_dir",
+			content: "[mire]\ntest_dir = \"\"\n",
+			wantErr: "empty mire.test_dir",
 		},
 		{
 			name:    "without sandbox table",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n",
 			wantErr: "missing [sandbox] config",
 		},
 		{
 			name:    "without required visible home",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\n",
 			wantErr: "missing required sandbox.visible_home",
 		},
 		{
 			name:    "empty required visible home",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"\"\n",
 			wantErr: "empty sandbox.visible_home",
 		},
 		{
 			name:    "relative visible home",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"home/test\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"home/test\"\n",
 			wantErr: "sandbox.visible_home must be an absolute path",
 		},
 		{
 			name:    "invalid sandbox key",
-			content: "[miro]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nKeyWord = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nKeyWord = \"value\"\n",
 			wantErr: "invalid sandbox key",
 		},
 		{
 			name:    "invalid toml",
-			content: "[miro]\ntest_dir = [\n",
+			content: "[mire]\ntest_dir = [\n",
 			wantErr: "failed to read",
 		},
 		{
@@ -84,7 +84,7 @@ func TestReadConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "miro.toml")
+			path := filepath.Join(t.TempDir(), "mire.toml")
 			if !tt.wantMissing {
 				if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
 					t.Fatalf("WriteFile() error = %v", err)
@@ -126,7 +126,7 @@ func TestReadConfig(t *testing.T) {
 }
 
 func TestWriteConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "miro.toml")
+	path := filepath.Join(t.TempDir(), "mire.toml")
 
 	if err := WriteConfig(path, Config{
 		TestDir: "e2e",
@@ -143,26 +143,26 @@ func TestWriteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	want := "[miro]\n  test_dir = \"e2e\"\n\n[sandbox]\n  alpha_key = \"a\"\n  visible_home = \"/home/test\"\n  zulu_key = \"z\"\n"
+	want := "[mire]\n  test_dir = \"e2e\"\n\n[sandbox]\n  alpha_key = \"a\"\n  visible_home = \"/home/test\"\n  zulu_key = \"z\"\n"
 	if string(got) != want {
 		t.Fatalf("config = %q, want %q", string(got), want)
 	}
 }
 
 func TestWriteConfigEmptyTestDirFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "miro.toml")
+	path := filepath.Join(t.TempDir(), "mire.toml")
 
 	err := WriteConfig(path, Config{})
 	if err == nil {
 		t.Fatal("WriteConfig() error = nil, want error")
 	}
-	if err.Error() != "empty miro.test_dir" {
-		t.Fatalf("WriteConfig() error = %q, want %q", err.Error(), "empty miro.test_dir")
+	if err.Error() != "empty mire.test_dir" {
+		t.Fatalf("WriteConfig() error = %q, want %q", err.Error(), "empty mire.test_dir")
 	}
 }
 
 func TestWriteConfigMissingRequiredSandboxFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "miro.toml")
+	path := filepath.Join(t.TempDir(), "mire.toml")
 
 	err := WriteConfig(path, Config{
 		TestDir: "e2e",

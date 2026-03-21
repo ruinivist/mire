@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"miro/internal/testutil"
+	"mire/internal/testutil"
 )
 
 func TestFormatElapsed(t *testing.T) {
@@ -152,7 +152,7 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("replayScenario() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "missing compare marker") || !strings.Contains(err.Error(), "rerun `miro init`") {
+	if !strings.Contains(err.Error(), "missing compare marker") || !strings.Contains(err.Error(), "rerun `mire init`") {
 		t.Fatalf("replayScenario() error = %q, want compare marker refresh hint", err.Error())
 	}
 }
@@ -212,7 +212,7 @@ func TestRunTestsScopedRunEmptyDirectoryFails(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	emptyDir := filepath.Join(testDir, "empty")
-	testutil.WriteFile(t, filepath.Join(root, "miro.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
 	testutil.MustMkdirAll(t, emptyDir)
 

@@ -1,10 +1,10 @@
 .PHONY: build test
 
-BIN := build/miro
+BIN := build/mire
 
 build:
 	mkdir -p build
-	go build -o $(BIN) ./cmd/miro
+	go build -o $(BIN) ./cmd/mire
 
 test:
 	go test ./...

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"miro/cmd"
+	"mire/cmd"
 )
 
 func main() {

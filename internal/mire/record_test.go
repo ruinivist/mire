@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"bytes"
@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"miro/internal/testutil"
+	"mire/internal/testutil"
 )
 
 func TestRecordCreatesRelativePath(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	testutil.MustMkdirAll(t, testDir)
-	testutil.WriteFile(t, filepath.Join(root, "miro.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
 	testutil.AddFakeRecordDependencies(t, "script")
 
@@ -116,23 +116,23 @@ func TestBuildRecordShellScriptUsesExpectedCommands(t *testing.T) {
 	body := buildRecordShellScript()
 
 	for _, want := range []string{
-		"host_home=${MIRO_HOST_HOME:?}",
-		"host_tmp=${MIRO_HOST_TMP:?}",
-		"path_env=${MIRO_PATH_ENV:?}",
-		"visible_home=${MIRO_VISIBLE_HOME:?}",
-		"bootstrap_rc=\"$host_home/.miro-shell-rc\"",
-		"setup_scripts_dir='/tmp/miro-setup-scripts'",
-		"visible_bootstrap_rc=\"$visible_home/.miro-shell-rc\"",
-		"for path in /tmp/miro-setup-scripts/*.sh; do",
+		"host_home=${MIRE_HOST_HOME:?}",
+		"host_tmp=${MIRE_HOST_TMP:?}",
+		"path_env=${MIRE_PATH_ENV:?}",
+		"visible_home=${MIRE_VISIBLE_HOME:?}",
+		"bootstrap_rc=\"$host_home/.mire-shell-rc\"",
+		"setup_scripts_dir='/tmp/mire-setup-scripts'",
+		"visible_bootstrap_rc=\"$visible_home/.mire-shell-rc\"",
+		"for path in /tmp/mire-setup-scripts/*.sh; do",
 		"source \"$path\"",
-		`if [ -n "${MIRO_SETUP_SCRIPTS:-}" ]; then`,
+		`if [ -n "${MIRE_SETUP_SCRIPTS:-}" ]; then`,
 		"i=1",
 		`while IFS= read -r host_path || [ -n "$host_path" ]; do`,
 		`visible_path=$(printf '%s/%03d.sh' "$setup_scripts_dir" "$i")`,
 		`set -- "$@" --ro-bind "$host_path" "$visible_path"`,
-		"${MIRO_SETUP_SCRIPTS-}",
-		`if [ "${MIRO_COMPARE_MARKER:-0}" = "1" ]; then`,
-		"printf '__MIRO_E2E_BEGIN__\\n'",
+		"${MIRE_SETUP_SCRIPTS-}",
+		`if [ "${MIRE_COMPARE_MARKER:-0}" = "1" ]; then`,
+		"printf '__MIRE_E2E_BEGIN__\\n'",
 		"--bind \"$host_home\" \"$visible_home\"",
 		"--bind \"$host_tmp\" '/tmp'",
 		"--setenv HOME \"$visible_home\"",
@@ -160,19 +160,19 @@ func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
 	}, []string{"/repo/e2e/setup.sh", "/repo/e2e/suite/setup.sh"})
 
 	for _, want := range []string{
-		"MIRO_HOST_HOME=/tmp/host-home",
-		"MIRO_HOST_TMP=/tmp/host-tmp",
-		"MIRO_PATH_ENV=/tmp/bin",
-		"MIRO_KEY_WORD=value",
-		"MIRO_VISIBLE_HOME=/sandbox/home",
-		"MIRO_SETUP_SCRIPTS=/repo/e2e/setup.sh\n/repo/e2e/suite/setup.sh",
+		"MIRE_HOST_HOME=/tmp/host-home",
+		"MIRE_HOST_TMP=/tmp/host-tmp",
+		"MIRE_PATH_ENV=/tmp/bin",
+		"MIRE_KEY_WORD=value",
+		"MIRE_VISIBLE_HOME=/sandbox/home",
+		"MIRE_SETUP_SCRIPTS=/repo/e2e/setup.sh\n/repo/e2e/suite/setup.sh",
 	} {
 		if !containsEnvEntry(env, want) {
 			t.Fatalf("env = %#v, want entry %q", env, want)
 		}
 	}
-	if containsEnvKey(env, "MIRO_SETUP_SCRIPT_BINDS") {
-		t.Fatalf("env = %#v, want MIRO_SETUP_SCRIPT_BINDS omitted", env)
+	if containsEnvKey(env, "MIRE_SETUP_SCRIPT_BINDS") {
+		t.Fatalf("env = %#v, want MIRE_SETUP_SCRIPT_BINDS omitted", env)
 	}
 }
 
@@ -188,19 +188,19 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		"MIRO_HOST_HOME=/tmp/host-home",
-		"MIRO_HOST_TMP=/tmp/host-tmp",
-		"MIRO_PATH_ENV=/tmp/bin",
-		"MIRO_VISIBLE_HOME=/sandbox/home",
-		"MIRO_SETUP_SCRIPTS=/repo/e2e/setup.sh",
-		"MIRO_COMPARE_MARKER=1",
+		"MIRE_HOST_HOME=/tmp/host-home",
+		"MIRE_HOST_TMP=/tmp/host-tmp",
+		"MIRE_PATH_ENV=/tmp/bin",
+		"MIRE_VISIBLE_HOME=/sandbox/home",
+		"MIRE_SETUP_SCRIPTS=/repo/e2e/setup.sh",
+		"MIRE_COMPARE_MARKER=1",
 	} {
 		if !containsEnvEntry(env, want) {
 			t.Fatalf("env = %#v, want entry %q", env, want)
 		}
 	}
-	if containsEnvKey(env, "MIRO_SETUP_SCRIPT_BINDS") {
-		t.Fatalf("env = %#v, want MIRO_SETUP_SCRIPT_BINDS omitted", env)
+	if containsEnvKey(env, "MIRE_SETUP_SCRIPT_BINDS") {
+		t.Fatalf("env = %#v, want MIRE_SETUP_SCRIPT_BINDS omitted", env)
 	}
 }
 
@@ -229,34 +229,34 @@ func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
 	}
 
 	args := strings.Split(strings.TrimSpace(testutil.ReadFile(t, argsPath)), "\n")
-	if len(args) != 10 {
-		t.Fatalf("script args = %q, want 10 args", args)
+	if len(args) != 9 {
+		t.Fatalf("script args = %q, want 9 args", args)
 	}
-	if got := args[:5]; strings.Join(got, "\n") != strings.Join([]string{"-q", "-e", "-E", "always", "-I"}, "\n") {
-		t.Fatalf("script args prefix = %q, want %q", got, []string{"-q", "-e", "-E", "always", "-I"})
+	if got := args[:4]; strings.Join(got, "\n") != strings.Join([]string{"-q", "-E", "always", "-I"}, "\n") {
+		t.Fatalf("script args prefix = %q, want %q", got, []string{"-q", "-E", "always", "-I"})
 	}
-	if args[6] != "-O" {
-		t.Fatalf("script args[6] = %q, want %q", args[6], "-O")
+	if args[5] != "-O" {
+		t.Fatalf("script args[5] = %q, want %q", args[5], "-O")
 	}
-	if args[8] != "-c" {
-		t.Fatalf("script args[8] = %q, want %q", args[8], "-c")
+	if args[7] != "-c" {
+		t.Fatalf("script args[7] = %q, want %q", args[7], "-c")
 	}
-	if args[9] != shellPath {
-		t.Fatalf("script args[9] = %q, want %q", args[9], shellPath)
+	if args[8] != shellPath {
+		t.Fatalf("script args[8] = %q, want %q", args[8], shellPath)
 	}
 
 	body := testutil.ReadFile(t, commandBodyPath)
 	for _, want := range []string{
-		"host_home=${MIRO_HOST_HOME:?}",
-		"visible_home=${MIRO_VISIBLE_HOME:?}",
-		"bootstrap_rc=\"$host_home/.miro-shell-rc\"",
-		"visible_bootstrap_rc=\"$visible_home/.miro-shell-rc\"",
-		"for path in /tmp/miro-setup-scripts/*.sh; do",
+		"host_home=${MIRE_HOST_HOME:?}",
+		"visible_home=${MIRE_VISIBLE_HOME:?}",
+		"bootstrap_rc=\"$host_home/.mire-shell-rc\"",
+		"visible_bootstrap_rc=\"$visible_home/.mire-shell-rc\"",
+		"for path in /tmp/mire-setup-scripts/*.sh; do",
 		"source \"$path\"",
-		`if [ -n "${MIRO_SETUP_SCRIPTS:-}" ]; then`,
+		`if [ -n "${MIRE_SETUP_SCRIPTS:-}" ]; then`,
 		`set -- "$@" --ro-bind "$host_path" "$visible_path"`,
-		`if [ "${MIRO_COMPARE_MARKER:-0}" = "1" ]; then`,
-		"printf '__MIRO_E2E_BEGIN__\\n'",
+		`if [ "${MIRE_COMPARE_MARKER:-0}" = "1" ]; then`,
+		"printf '__MIRE_E2E_BEGIN__\\n'",
 		"--ro-bind / /",
 		"--tmpfs /home",
 		"--setenv HOME \"$visible_home\"",
@@ -298,7 +298,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 		defer close(writeDone)
 		defer writer.Close()
 
-		if _, err := writer.Write([]byte("pwd\necho \"$HOME\"\necho \"$MIRO_KEY_WORD\"\nif [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\npwd\nexit\n")); err != nil {
+		if _, err := writer.Write([]byte("pwd\necho \"$HOME\"\necho \"$MIRE_KEY_WORD\"\nif [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\npwd\nexit\n")); err != nil {
 			writeDone <- err
 			return
 		}
@@ -331,7 +331,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 	if strings.Contains(recordedIn, "Script started on ") {
 		t.Fatalf("saved in = %q, want stripped script wrapper", recordedIn)
 	}
-	for _, want := range []string{"pwd\n", "echo \"$HOME\"\n", "echo \"$MIRO_KEY_WORD\"\n", "if [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\n", "exit\n"} {
+	for _, want := range []string{"pwd\n", "echo \"$HOME\"\n", "echo \"$MIRE_KEY_WORD\"\n", "if [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\n", "exit\n"} {
 		if !strings.Contains(recordedIn, want) {
 			t.Fatalf("saved in = %q, want substring %q", recordedIn, want)
 		}
@@ -357,7 +357,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
-	testutil.WriteFile(t, filepath.Join(root, "miro.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
 	testutil.MustMkdirAll(t, testDir)
 	testutil.AddFakeRecordDependencies(t, "script")
 
@@ -369,7 +369,7 @@ func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("Record() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "rerun `miro init`") {
+	if !strings.Contains(err.Error(), "rerun `mire init`") {
 		t.Fatalf("Record() error = %q, want rerun init hint", err.Error())
 	}
 	if _, statErr := os.Stat(target); !os.IsNotExist(statErr) {

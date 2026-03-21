@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"miro/internal/miro"
-	"miro/internal/output"
+	"mire/internal/mire"
+	"mire/internal/output"
 
 	"github.com/spf13/cobra"
 )
@@ -12,7 +12,7 @@ func newInitCommand() *cobra.Command {
 		Use:  "init",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := miro.Init(); err != nil {
+			if err := mire.Init(); err != nil {
 				return err
 			}
 

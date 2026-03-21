@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"errors"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	miroconfig "miro/internal/config"
+	mireconfig "mire/internal/config"
 )
 
 // ResolveTestDir resolves the project test directory from config.
@@ -30,12 +30,12 @@ func resolveTestDirFromRoot(root string) (string, error) {
 	return resolveTestDirFromConfig(root, cfg)
 }
 
-func readConfigFromRoot(root string) (miroconfig.Config, error) {
-	configPath := filepath.Join(root, "miro.toml")
-	return miroconfig.ReadConfig(configPath)
+func readConfigFromRoot(root string) (mireconfig.Config, error) {
+	configPath := filepath.Join(root, "mire.toml")
+	return mireconfig.ReadConfig(configPath)
 }
 
-func resolveTestDirFromConfig(root string, cfg miroconfig.Config) (string, error) {
+func resolveTestDirFromConfig(root string, cfg mireconfig.Config) (string, error) {
 	testDir := filepath.Join(root, cfg.TestDir)
 	info, err := os.Stat(testDir)
 	if err == nil {

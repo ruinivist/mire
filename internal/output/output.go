@@ -9,13 +9,13 @@ import (
 
 var (
 	palette = struct {
-		miroGreen   uint32
+		mireGreen   uint32
 		chevronTeal uint32
 		info        uint32
 		pass        uint32
 		fail        uint32
 	}{
-		miroGreen:   0x70E000,
+		mireGreen:   0x70E000,
 		chevronTeal: 0x1DD3B0,
 		info:        0xD7FFFF,
 		pass:        0x00d7af,
@@ -58,7 +58,7 @@ func noColor() bool {
 
 func prefix() string {
 	chevron := NewStyle().FG(palette.chevronTeal).Bold().Italic().Apply("›")
-	return NewStyle().FG(palette.miroGreen).Bold().Italic().Apply("miro") + " " + chevron + " "
+	return NewStyle().FG(palette.mireGreen).Bold().Italic().Apply("mire") + " " + chevron + " "
 }
 
 func Format(msg string) string {

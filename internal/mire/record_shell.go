@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"embed"
@@ -13,9 +13,9 @@ import (
 const recordShellName = "shell.sh"
 
 const (
-	compareMarkerEnvName      = "MIRO_COMPARE_MARKER"
+	compareMarkerEnvName      = "MIRE_COMPARE_MARKER"
 	compareMarkerEnabledValue = "1"
-	compareOutputMarker       = "__MIRO_E2E_BEGIN__"
+	compareOutputMarker       = "__MIRE_E2E_BEGIN__"
 )
 
 //go:embed record_shell.sh
@@ -29,7 +29,7 @@ func ensureRecordShell(testDir string) error {
 	path := recordShellPath(testDir)
 	if info, err := os.Stat(path); err == nil {
 		if info.IsDir() {
-			return fmt.Errorf("recorder shell %q is a directory; remove it and rerun `miro init`", path)
+			return fmt.Errorf("recorder shell %q is a directory; remove it and rerun `mire init`", path)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to check recorder shell %q: %v", path, err)
@@ -59,12 +59,12 @@ func resolveRecordShell(testDir string) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("missing recorder shell %q; rerun `miro init` or restore the file", path)
+			return "", fmt.Errorf("missing recorder shell %q; rerun `mire init` or restore the file", path)
 		}
 		return "", fmt.Errorf("failed to check recorder shell %q: %v", path, err)
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("recorder shell %q is a directory; rerun `miro init` or restore the file", path)
+		return "", fmt.Errorf("recorder shell %q is a directory; rerun `mire init` or restore the file", path)
 	}
 
 	return path, nil
@@ -86,9 +86,9 @@ func recordSessionEnv(sandbox recordSandbox, sandboxConfig map[string]string, se
 func recordSessionEnvWithExtra(sandbox recordSandbox, sandboxConfig map[string]string, setupScripts []string, extraEnv map[string]string) []string {
 	env := append([]string{}, os.Environ()...)
 	env = append(env,
-		"MIRO_HOST_HOME="+sandbox.hostHome,
-		"MIRO_HOST_TMP="+sandbox.hostTmp,
-		"MIRO_PATH_ENV="+sandbox.pathEnv,
+		"MIRE_HOST_HOME="+sandbox.hostHome,
+		"MIRE_HOST_TMP="+sandbox.hostTmp,
+		"MIRE_PATH_ENV="+sandbox.pathEnv,
 		setupScriptsEnvName+"="+strings.Join(setupScripts, "\n"),
 	)
 	for _, key := range sortedKeys(sandboxConfig) {
@@ -102,7 +102,7 @@ func recordSessionEnvWithExtra(sandbox recordSandbox, sandboxConfig map[string]s
 }
 
 func sandboxEnvName(key string) string {
-	return "MIRO_" + strings.ToUpper(key)
+	return "MIRE_" + strings.ToUpper(key)
 }
 
 func sortedKeys(values map[string]string) []string {

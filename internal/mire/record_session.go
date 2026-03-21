@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"miro/internal/output"
+	"mire/internal/output"
 )
 
 type recordIO struct {
@@ -68,7 +68,7 @@ func recordScenario(target, shellPath string, rio recordIO, sandboxConfig map[st
 }
 
 func newRecordFiles() (string, string, func(), error) {
-	dir, err := os.MkdirTemp("", "miro-record-")
+	dir, err := os.MkdirTemp("", "mire-record-")
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -91,7 +91,7 @@ func newRecordSandbox() (recordSandbox, func(), error) {
 }
 
 func newRecordSandboxForPathEnv(pathEnv string) (recordSandbox, func(), error) {
-	dir, err := os.MkdirTemp("", "miro-record-sandbox-")
+	dir, err := os.MkdirTemp("", "mire-record-sandbox-")
 	if err != nil {
 		return recordSandbox{}, nil, err
 	}

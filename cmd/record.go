@@ -4,8 +4,8 @@ import (
 	"errors"
 	"path/filepath"
 
-	"miro/internal/miro"
-	"miro/internal/output"
+	"mire/internal/mire"
+	"mire/internal/output"
 
 	"github.com/spf13/cobra"
 )
@@ -16,9 +16,9 @@ func newRecordCommand() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			path := filepath.Clean(args[0])
-			createdPath, err := miro.Record(path)
+			createdPath, err := mire.Record(path)
 			if err != nil {
-				if errors.Is(err, miro.ErrRecordingDiscarded) {
+				if errors.Is(err, mire.ErrRecordingDiscarded) {
 					return nil
 				}
 				return err

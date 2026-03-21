@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"miro/internal/testutil"
+	"mire/internal/testutil"
 )
 
 func TestResolvePathWithinTestDirAcceptsRelativePath(t *testing.T) {

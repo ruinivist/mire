@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 const (
 	setupScriptName     = "setup.sh"
-	setupScriptsEnvName = "MIRO_SETUP_SCRIPTS"
+	setupScriptsEnvName = "MIRE_SETUP_SCRIPTS"
 )
 
 func discoverSetupScripts(testDir, scenarioDir string) ([]string, error) {

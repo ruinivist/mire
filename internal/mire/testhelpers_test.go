@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"miro/internal/testutil"
+	"mire/internal/testutil"
 )
 
 func assertRecordShell(t *testing.T, path string) {

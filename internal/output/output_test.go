@@ -21,8 +21,8 @@ func TestFormatIncludesANSIByDefault(t *testing.T) {
 func TestFormatPlainWhenNoColorSet(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 
-	if got := Format("hello\n"); got != "miro › hello\n" {
-		t.Fatalf("Format() = %q, want %q", got, "miro › hello\n")
+	if got := Format("hello\n"); got != "mire › hello\n" {
+		t.Fatalf("Format() = %q, want %q", got, "mire › hello\n")
 	}
 }
 
@@ -52,7 +52,7 @@ func TestFormatReadsNoColorAtRuntime(t *testing.T) {
 	if !strings.Contains(styled, "\x1b[") {
 		t.Fatalf("styled Format() = %q, want ANSI styling", styled)
 	}
-	if plain != "miro › hello\n" {
-		t.Fatalf("plain Format() = %q, want %q", plain, "miro › hello\n")
+	if plain != "mire › hello\n" {
+		t.Fatalf("plain Format() = %q, want %q", plain, "mire › hello\n")
 	}
 }

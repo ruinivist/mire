@@ -27,11 +27,11 @@ type Config struct {
 }
 
 type tomlConfig struct {
-	Miro    tomlMiroConfig    `toml:"miro"`
+	Mire    tomlMireConfig    `toml:"mire"`
 	Sandbox map[string]string `toml:"sandbox"`
 }
 
-type tomlMiroConfig struct {
+type tomlMireConfig struct {
 	TestDir string `toml:"test_dir"`
 }
 
@@ -39,7 +39,7 @@ func DefaultSandboxConfig() map[string]string {
 	return cloneSandbox(requiredSandboxDefaults)
 }
 
-// ReadConfig reads miro.toml.
+// ReadConfig reads mire.toml.
 func ReadConfig(path string) (Config, error) {
 	var raw tomlConfig
 
@@ -50,14 +50,14 @@ func ReadConfig(path string) (Config, error) {
 		}
 		return Config{}, fmt.Errorf("failed to read %s: %v", path, err)
 	}
-	if !meta.IsDefined("miro") {
-		return Config{}, fmt.Errorf("failed to read %s: missing [miro] config", path)
+	if !meta.IsDefined("mire") {
+		return Config{}, fmt.Errorf("failed to read %s: missing [mire] config", path)
 	}
-	if !meta.IsDefined("miro", "test_dir") {
-		return Config{}, fmt.Errorf("failed to read %s: missing required miro.test_dir", path)
+	if !meta.IsDefined("mire", "test_dir") {
+		return Config{}, fmt.Errorf("failed to read %s: missing required mire.test_dir", path)
 	}
-	if raw.Miro.TestDir == "" {
-		return Config{}, fmt.Errorf("failed to read %s: empty miro.test_dir", path)
+	if raw.Mire.TestDir == "" {
+		return Config{}, fmt.Errorf("failed to read %s: empty mire.test_dir", path)
 	}
 	if !meta.IsDefined("sandbox") {
 		return Config{}, fmt.Errorf("failed to read %s: missing [sandbox] config", path)
@@ -69,15 +69,15 @@ func ReadConfig(path string) (Config, error) {
 	}
 
 	return Config{
-		TestDir: raw.Miro.TestDir,
+		TestDir: raw.Mire.TestDir,
 		Sandbox: sandbox,
 	}, nil
 }
 
-// WriteConfig writes miro.toml.
+// WriteConfig writes mire.toml.
 func WriteConfig(path string, cfg Config) error {
 	if cfg.TestDir == "" {
-		return errors.New("empty miro.test_dir")
+		return errors.New("empty mire.test_dir")
 	}
 	sandbox, err := validateSandbox(path, cfg.Sandbox)
 	if err != nil {
@@ -85,7 +85,7 @@ func WriteConfig(path string, cfg Config) error {
 	}
 
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "[miro]\n  test_dir = %q\n\n[sandbox]\n", cfg.TestDir)
+	fmt.Fprintf(&buf, "[mire]\n  test_dir = %q\n\n[sandbox]\n", cfg.TestDir)
 
 	keys := make([]string, 0, len(sandbox))
 	for key := range sandbox {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"miro/internal/testutil"
+	"mire/internal/testutil"
 )
 
 func TestRunShowsHelpWhenNoArgs(t *testing.T) {
@@ -49,7 +49,7 @@ func TestRunInit(t *testing.T) {
 		return struct{}{}
 	})
 
-	if got := testutil.ReadFile(t, filepath.Join(root, "miro.toml")); got != testutil.DefaultWrittenConfig("e2e") {
+	if got := testutil.ReadFile(t, filepath.Join(root, "mire.toml")); got != testutil.DefaultWrittenConfig("e2e") {
 		t.Fatalf("config = %q, want %q", got, testutil.DefaultWrittenConfig("e2e"))
 	}
 	info, err := os.Stat(filepath.Join(root, "e2e", "shell.sh"))
@@ -121,8 +121,8 @@ func TestRunInitFailsWhenDependenciesMissing(t *testing.T) {
 		if !strings.Contains(stderr, `required command "script" not found in PATH`) {
 			t.Fatalf("stderr = %q, want missing dependency error", stderr)
 		}
-		if _, err := os.Stat(filepath.Join(root, "miro.toml")); !os.IsNotExist(err) {
-			t.Fatalf("Stat(%q) error = %v, want not exists", filepath.Join(root, "miro.toml"), err)
+		if _, err := os.Stat(filepath.Join(root, "mire.toml")); !os.IsNotExist(err) {
+			t.Fatalf("Stat(%q) error = %v, want not exists", filepath.Join(root, "mire.toml"), err)
 		}
 		if _, err := os.Stat(filepath.Join(root, "e2e", "shell.sh")); !os.IsNotExist(err) {
 			t.Fatalf("Stat(%q) error = %v, want not exists", filepath.Join(root, "e2e", "shell.sh"), err)
@@ -146,7 +146,7 @@ func TestRunRecordMissingPath(t *testing.T) {
 	if !strings.Contains(stderr, "accepts 1 arg(s), received 0") {
 		t.Fatalf("stderr = %q, want argument error", stderr)
 	}
-	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "miro record <path>") {
+	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "mire record <path>") {
 		t.Fatalf("stderr = %q, want record usage", stderr)
 	}
 }
@@ -212,7 +212,7 @@ func TestRunTestExtraArgs(t *testing.T) {
 	if !strings.Contains(stderr, "accepts at most 1 arg(s), received 2") {
 		t.Fatalf("stderr = %q, want extra-arg error", stderr)
 	}
-	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "miro test [path]") {
+	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "mire test [path]") {
 		t.Fatalf("stderr = %q, want test usage", stderr)
 	}
 }
@@ -229,10 +229,10 @@ func TestRunInitExtraArgs(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "unknown command \"extra\" for \"miro init\"") {
+	if !strings.Contains(stderr, "unknown command \"extra\" for \"mire init\"") {
 		t.Fatalf("stderr = %q, want extra-arg error", stderr)
 	}
-	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "miro init") {
+	if !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, "mire init") {
 		t.Fatalf("stderr = %q, want init usage", stderr)
 	}
 }
@@ -249,11 +249,11 @@ func TestRunUnknownCommand(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
-	if !strings.Contains(stderr, "unknown command \"wat\" for \"miro\"") {
+	if !strings.Contains(stderr, "unknown command \"wat\" for \"mire\"") {
 		t.Fatalf("stderr = %q, want unknown command error", stderr)
 	}
 }
 
 func prefixed(msg string) string {
-	return "miro › " + msg
+	return "mire › " + msg
 }

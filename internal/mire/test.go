@@ -1,4 +1,4 @@
-package miro
+package mire
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"miro/internal/output"
+	"mire/internal/output"
 )
 
 type testIO struct {
@@ -266,7 +266,7 @@ func trimReplayOutputToMarker(data []byte, shellPath string) ([]byte, error) {
 	idx := bytes.Index(data, []byte(compareOutputMarker))
 	if idx == -1 {
 		return nil, fmt.Errorf(
-			"missing compare marker %q in replay output; rerun `miro init` or refresh %q",
+			"missing compare marker %q in replay output; rerun `mire init` or refresh %q",
 			compareOutputMarker,
 			shellPath,
 		)

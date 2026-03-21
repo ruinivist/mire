@@ -1,4 +1,4 @@
-package miro
+package mire
 
 var (
 	ErrRecordingDiscarded = RecordingDiscardedError{}

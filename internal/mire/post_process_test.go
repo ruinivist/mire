@@ -1,10 +1,10 @@
-package miro
+package mire
 
 import (
 	"path/filepath"
 	"testing"
 
-	"miro/internal/testutil"
+	"mire/internal/testutil"
 )
 
 func TestLoadRecordedInputTrimsTrailingNewlineAfterEOF(t *testing.T) {

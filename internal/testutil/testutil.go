@@ -175,12 +175,12 @@ if [ -n "${FAKE_SCRIPT_COMMAND_BODY_FILE:-}" ] && [ -n "$cmd" ]; then
   done < "$cmd"
 fi
 command_has_compare_marker=0
-if [ -n "$cmd" ] && /bin/grep -q '__MIRO_E2E_BEGIN__' "$cmd" 2>/dev/null; then
+if [ -n "$cmd" ] && /bin/grep -q '__MIRE_E2E_BEGIN__' "$cmd" 2>/dev/null; then
   command_has_compare_marker=1
 fi
 stdin_file=''
 if [ "${FAKE_SCRIPT_ECHO_STDIN:-}" = "1" ] || [ -n "${FAKE_SCRIPT_CAPTURE_STDIN_FILE:-}" ]; then
-  stdin_file="${TMPDIR:-/tmp}/miro-fake-script-stdin-$$"
+  stdin_file="${TMPDIR:-/tmp}/mire-fake-script-stdin-$$"
   /bin/cat > "$stdin_file"
 fi
 if [ -n "${FAKE_SCRIPT_CAPTURE_STDIN_FILE:-}" ] && [ -n "$stdin_file" ]; then
@@ -198,8 +198,8 @@ if [ -n "${FAKE_SCRIPT_STREAM_OUT+x}" ]; then
   printf '%s' "$FAKE_SCRIPT_STREAM_OUT"
 elif [ "${FAKE_SCRIPT_ECHO_STDIN:-}" = "1" ] && [ -n "$stdin_file" ]; then
   /bin/cat "$stdin_file"
-  if [ "${MIRO_COMPARE_MARKER:-0}" = "1" ] && [ "$command_has_compare_marker" = "1" ]; then
-    printf '%s\n' '__MIRO_E2E_BEGIN__'
+  if [ "${MIRE_COMPARE_MARKER:-0}" = "1" ] && [ "$command_has_compare_marker" = "1" ]; then
+    printf '%s\n' '__MIRE_E2E_BEGIN__'
     /bin/cat "$stdin_file"
   fi
 fi
@@ -213,8 +213,8 @@ elif [ -n "$out" ] && [ "${FAKE_SCRIPT_ECHO_STDIN:-}" = "1" ] && [ -n "$stdin_fi
     printf '%s' 'Script started on 2026-03-18 11:13:38+00:00 [TERM="xterm-256color"]
 '
     /bin/cat "$stdin_file"
-    if [ "${MIRO_COMPARE_MARKER:-0}" = "1" ] && [ "$command_has_compare_marker" = "1" ]; then
-      printf '%s\n' '__MIRO_E2E_BEGIN__'
+    if [ "${MIRE_COMPARE_MARKER:-0}" = "1" ] && [ "$command_has_compare_marker" = "1" ]; then
+      printf '%s\n' '__MIRE_E2E_BEGIN__'
       /bin/cat "$stdin_file"
     fi
     printf '%s' 'Script done on 2026-03-18 11:13:44+00:00 [COMMAND_EXIT_CODE="0"]
@@ -265,9 +265,9 @@ func MustGitInit(t *testing.T, dir string) {
 }
 
 func DefaultWrittenConfig(testDir string) string {
-	return "[miro]\n  test_dir = \"" + testDir + "\"\n\n[sandbox]\n  visible_home = \"/home/test\"\n"
+	return "[mire]\n  test_dir = \"" + testDir + "\"\n\n[sandbox]\n  visible_home = \"/home/test\"\n"
 }
 
 func ValidConfigContent(testDir string) string {
-	return "[miro]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nvisible_home = \"/home/test\"\n"
+	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nvisible_home = \"/home/test\"\n"
 }

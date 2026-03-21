@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"miro/internal/miro"
+	"mire/internal/mire"
 
 	"github.com/spf13/cobra"
 )
@@ -16,7 +16,7 @@ func newTestCommand() *cobra.Command {
 				path = args[0]
 			}
 
-			return miro.RunTests(path)
+			return mire.RunTests(path)
 		},
 	}
 }

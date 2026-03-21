@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Run executes the miro CLI and returns a process exit code.
+// Run executes the mire CLI and returns a process exit code.
 func Run(args []string) int {
 	if err := ensureDependencies(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -27,7 +27,7 @@ func Run(args []string) int {
 
 func newRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "miro",
+		Use:   "mire",
 		Short: "A lean CLI E2E testing framework.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
