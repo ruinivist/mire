@@ -73,6 +73,19 @@ func TestResolvePathWithinTestDirRejectsAbsolutePathOutsideTestDir(t *testing.T)
 	}
 }
 
+func TestResolvePathWithinTestDirRejectsRelativePathOutsideTestDir(t *testing.T) {
+	root := t.TempDir()
+	testDir := filepath.Join(root, "e2e")
+
+	_, err := resolvePathWithinTestDir(testDir, filepath.Join("..", "outside"), "record")
+	if err == nil {
+		t.Fatal("resolvePathWithinTestDir() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "must be inside test directory") {
+		t.Fatalf("resolvePathWithinTestDir() error = %q, want inside test directory error", err.Error())
+	}
+}
+
 func TestResolvePathWithinTestDirAllowsPathCurrentDirectory(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")

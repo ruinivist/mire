@@ -17,21 +17,39 @@ func resolvePathWithinTestDir(testDir, path, pathType string) (string, error) {
 		return "", fmt.Errorf("failed to resolve test directory path: %v", err)
 	}
 
+	ensureWithinTestDir := func(candidate string) (string, bool) {
+		relToTestDir, relErr := filepath.Rel(absTestDir, candidate)
+		if relErr != nil || !isWithinBase(relToTestDir) {
+			return "", false
+		}
+
+		return candidate, true
+	}
+
+	if filepath.IsAbs(path) {
+		absPath := filepath.Clean(path)
+		if candidate, ok := ensureWithinTestDir(absPath); ok {
+			return candidate, nil
+		}
+
+		return "", fmt.Errorf("%s path %q must be inside test directory %q", pathType, path, absTestDir)
+	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve %s path: %v", pathType, err)
 	}
 
-	relToTestDir, err := filepath.Rel(absTestDir, absPath)
-	if err == nil && isWithinBase(relToTestDir) {
-		return filepath.Join(absTestDir, relToTestDir), nil
+	if candidate, ok := ensureWithinTestDir(absPath); ok {
+		return candidate, nil
 	}
 
-	if filepath.IsAbs(path) {
-		return "", fmt.Errorf("%s path %q must be inside test directory %q", pathType, path, absTestDir)
+	candidate := filepath.Clean(filepath.Join(absTestDir, path))
+	if candidate, ok := ensureWithinTestDir(candidate); ok {
+		return candidate, nil
 	}
 
-	return filepath.Join(absTestDir, path), nil
+	return "", fmt.Errorf("%s path %q must be inside test directory %q", pathType, path, absTestDir)
 }
 
 func isWithinBase(rel string) bool {

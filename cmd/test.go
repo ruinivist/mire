@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"miro/internal/miro"
 
 	"github.com/spf13/cobra"
@@ -15,7 +13,7 @@ func newTestCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, args []string) error {
 			path := ""
 			if len(args) == 1 {
-				path = filepath.Clean(args[0])
+				path = args[0]
 			}
 
 			return miro.RunTests(path)
