@@ -85,15 +85,15 @@ func runTests(path string, tio testIO) error {
 
 		start := time.Now()
 		if err := replayScenario(scenario, shellPath, tio, cfg.Sandbox); err != nil {
-			elapsed := time.Since(start).Seconds()
+			elapsed := time.Since(start)
 			summary.failed++
-			output.Fprintf(tio.out, "%s %s in %.3f seconds: %v\n", output.Label("FAIL", output.Fail), scenario.relPath, elapsed, err)
+			output.Fprintf(tio.out, "%s %s (%s): %v\n", output.Label("FAIL", output.Fail), scenario.relPath, formatElapsed(elapsed), err)
 			continue
 		}
 
-		elapsed := time.Since(start).Seconds()
+		elapsed := time.Since(start)
 		summary.passed++
-		output.Fprintf(tio.out, "%s %s in %.3f seconds\n", output.Label("PASS", output.Pass), scenario.relPath, elapsed)
+		output.Fprintf(tio.out, "%s %s (%s)\n", output.Label("PASS", output.Pass), scenario.relPath, formatElapsed(elapsed))
 	}
 
 	summaryColor := output.Pass
@@ -111,6 +111,14 @@ func runTests(path string, tio testIO) error {
 	)
 
 	return nil
+}
+
+func formatElapsed(elapsed time.Duration) string {
+	if elapsed < time.Second {
+		return fmt.Sprintf("%d ms", elapsed/time.Millisecond)
+	}
+
+	return fmt.Sprintf("%.2f s", elapsed.Seconds())
 }
 
 func resolveTestDiscoveryRoot(testDir, path string) (string, error) {

@@ -5,7 +5,28 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestFormatElapsed(t *testing.T) {
+	tests := []struct {
+		name     string
+		elapsed  time.Duration
+		wantText string
+	}{
+		{name: "sub-second", elapsed: 123 * time.Millisecond, wantText: "123 ms"},
+		{name: "boundary", elapsed: time.Second, wantText: "1.00 s"},
+		{name: "multi-second", elapsed: 1534 * time.Millisecond, wantText: "1.53 s"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatElapsed(tt.elapsed); got != tt.wantText {
+				t.Fatalf("formatElapsed(%v) = %q, want %q", tt.elapsed, got, tt.wantText)
+			}
+		})
+	}
+}
 
 func TestDiscoverTestScenariosFindsNestedFixturesAndSorts(t *testing.T) {
 	testDir := filepath.Join(t.TempDir(), "e2e")

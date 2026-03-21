@@ -220,10 +220,10 @@ func TestRunTest(t *testing.T) {
 
 		for _, want := range []string{
 			"RUN a",
-			"PASS a in ",
-			" seconds",
+			"PASS a (",
+			" ms)",
 			"RUN nested/b",
-			"PASS nested/b in ",
+			"PASS nested/b (",
 			"Summary: total=2 passed=2 failed=0",
 		} {
 			if !strings.Contains(stdout, want) {
@@ -266,9 +266,9 @@ func TestRunTestScopedDirectory(t *testing.T) {
 
 		for _, want := range []string{
 			"RUN nested/b",
-			"PASS nested/b in ",
+			"PASS nested/b (",
 			"RUN nested/c",
-			"PASS nested/c in ",
+			"PASS nested/c (",
 			"Summary: total=2 passed=2 failed=0",
 		} {
 			if !strings.Contains(stdout, want) {
@@ -313,7 +313,7 @@ func TestRunTestScopedLeafDirectory(t *testing.T) {
 
 		for _, want := range []string{
 			"RUN nested/b",
-			"PASS nested/b in ",
+			"PASS nested/b (",
 			"Summary: total=1 passed=1 failed=0",
 		} {
 			if !strings.Contains(stdout, want) {
@@ -358,9 +358,9 @@ func TestRunTestReturnsZeroWhenScenarioMismatches(t *testing.T) {
 
 		for _, want := range []string{
 			"RUN a",
-			"PASS a in ",
+			"PASS a (",
 			"RUN b",
-			"FAIL b in ",
+			"FAIL b (",
 			"output differed",
 			"Summary: total=2 passed=1 failed=1",
 		} {
@@ -459,7 +459,7 @@ func TestRunTestReturnsZeroWhenCompareMarkerMissing(t *testing.T) {
 
 		for _, want := range []string{
 			"RUN some",
-			"FAIL some in ",
+			"FAIL some (",
 			"missing compare marker",
 			"Summary: total=1 passed=0 failed=1",
 		} {

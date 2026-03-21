@@ -18,7 +18,7 @@ var (
 		miroGreen:   0x70E000,
 		chevronTeal: 0x1DD3B0,
 		info:        0xD7FFFF,
-		pass:        0x87D75F,
+		pass:        0x00d7af,
 		fail:        0xFF8787,
 	}
 )
