@@ -228,7 +228,7 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 	}
 	defer cleanupSandbox()
 
-	cmd := exec.Command("script", "-q", "-e", "-E", "always", "-O", rawOut, "-c", shellPath)
+	cmd := exec.Command("script", "-q", "-E", "always", "-O", rawOut, "-c", shellPath)
 	cmd.Dir = scenario.dir
 	cmd.Env = recordSessionEnvWithExtra(sandbox, sandboxConfig, scenario.setupScripts, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
