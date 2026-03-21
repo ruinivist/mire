@@ -438,9 +438,9 @@ func MustGitInit(t *testing.T, dir string) {
 }
 
 func DefaultWrittenConfig(testDir string) string {
-	return "[mire]\n  test_dir = \"" + testDir + "\"\n\n[sandbox]\n  visible_home = \"/home/test\"\n"
+	return "[mire]\n  test_dir = \"" + testDir + "\"\n\n[sandbox]\n  home = \"/home/test\"\n"
 }
 
 func ValidConfigContent(testDir string) string {
-	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nvisible_home = \"/home/test\"\n"
+	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nhome = \"/home/test\"\n"
 }

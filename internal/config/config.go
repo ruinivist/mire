@@ -17,7 +17,7 @@ const DefaultVisibleHome = "/home/test"
 var (
 	lowerSnakeCasePattern   = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`)
 	requiredSandboxDefaults = map[string]string{
-		"visible_home": DefaultVisibleHome,
+		"home": DefaultVisibleHome,
 	}
 )
 
@@ -118,8 +118,8 @@ func validateSandbox(path string, sandbox map[string]string) (map[string]string,
 		}
 	}
 
-	if !filepath.IsAbs(validated["visible_home"]) {
-		return nil, fmt.Errorf("failed to read %s: sandbox.visible_home must be an absolute path", path)
+	if !filepath.IsAbs(validated["home"]) {
+		return nil, fmt.Errorf("failed to read %s: sandbox.home must be an absolute path", path)
 	}
 
 	return validated, nil

@@ -117,7 +117,7 @@ func mustWriteRecordShell(t *testing.T, testDir string) {
 
 func defaultSandboxConfig() map[string]string {
 	return map[string]string{
-		"visible_home": "/home/test",
+		"home": "/home/test",
 	}
 }
 

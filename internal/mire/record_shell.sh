@@ -5,7 +5,7 @@ set -eu
 host_home=${MIRE_HOST_HOME:?}
 host_tmp=${MIRE_HOST_TMP:?}
 path_env=${MIRE_PATH_ENV:?}
-visible_home=${MIRE_VISIBLE_HOME:?}
+visible_home=${MIRE_HOME:?}
 bootstrap_rc="$host_home/.mire-shell-rc"
 visible_bootstrap_rc="$visible_home/.mire-shell-rc"
 setup_scripts_dir='/tmp/mire-setup-scripts'

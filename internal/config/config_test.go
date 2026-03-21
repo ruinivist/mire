@@ -19,11 +19,11 @@ func TestReadConfig(t *testing.T) {
 	}{
 		{
 			name:    "with test dir and sandbox",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nkey_word = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nkey_word = \"value\"\n",
 			wantDir: "custom/suite",
 			wantSandbox: map[string]string{
-				"visible_home": "/home/test",
-				"key_word":     "value",
+				"home":     "/home/test",
+				"key_word": "value",
 			},
 		},
 		{
@@ -52,23 +52,23 @@ func TestReadConfig(t *testing.T) {
 			wantErr: "missing [sandbox] config",
 		},
 		{
-			name:    "without required visible home",
+			name:    "without required home",
 			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\n",
-			wantErr: "missing required sandbox.visible_home",
+			wantErr: "missing required sandbox.home",
 		},
 		{
-			name:    "empty required visible home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"\"\n",
-			wantErr: "empty sandbox.visible_home",
+			name:    "empty required home",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"\"\n",
+			wantErr: "empty sandbox.home",
 		},
 		{
-			name:    "relative visible home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"home/test\"\n",
-			wantErr: "sandbox.visible_home must be an absolute path",
+			name:    "relative home",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"home/test\"\n",
+			wantErr: "sandbox.home must be an absolute path",
 		},
 		{
 			name:    "invalid sandbox key",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nvisible_home = \"/home/test\"\nKeyWord = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nKeyWord = \"value\"\n",
 			wantErr: "invalid sandbox key",
 		},
 		{
@@ -131,9 +131,9 @@ func TestWriteConfig(t *testing.T) {
 	if err := WriteConfig(path, Config{
 		TestDir: "e2e",
 		Sandbox: map[string]string{
-			"visible_home": "/home/test",
-			"alpha_key":    "a",
-			"zulu_key":     "z",
+			"home":      "/home/test",
+			"alpha_key": "a",
+			"zulu_key":  "z",
 		},
 	}); err != nil {
 		t.Fatalf("WriteConfig() error = %v", err)
@@ -143,7 +143,7 @@ func TestWriteConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	want := "[mire]\n  test_dir = \"e2e\"\n\n[sandbox]\n  alpha_key = \"a\"\n  visible_home = \"/home/test\"\n  zulu_key = \"z\"\n"
+	want := "[mire]\n  test_dir = \"e2e\"\n\n[sandbox]\n  alpha_key = \"a\"\n  home = \"/home/test\"\n  zulu_key = \"z\"\n"
 	if string(got) != want {
 		t.Fatalf("config = %q, want %q", string(got), want)
 	}
@@ -171,7 +171,7 @@ func TestWriteConfigMissingRequiredSandboxFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("WriteConfig() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "missing required sandbox.visible_home") {
-		t.Fatalf("WriteConfig() error = %q, want visible_home error", err.Error())
+	if !strings.Contains(err.Error(), "missing required sandbox.home") {
+		t.Fatalf("WriteConfig() error = %q, want home error", err.Error())
 	}
 }

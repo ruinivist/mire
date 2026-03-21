@@ -119,7 +119,7 @@ func TestBuildRecordShellScriptUsesExpectedCommands(t *testing.T) {
 		"host_home=${MIRE_HOST_HOME:?}",
 		"host_tmp=${MIRE_HOST_TMP:?}",
 		"path_env=${MIRE_PATH_ENV:?}",
-		"visible_home=${MIRE_VISIBLE_HOME:?}",
+		"visible_home=${MIRE_HOME:?}",
 		"bootstrap_rc=\"$host_home/.mire-shell-rc\"",
 		"setup_scripts_dir='/tmp/mire-setup-scripts'",
 		"visible_bootstrap_rc=\"$visible_home/.mire-shell-rc\"",
@@ -159,8 +159,8 @@ func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
 		hostTmp:  "/tmp/host-tmp",
 		pathEnv:  "/tmp/bin",
 	}, map[string]string{
-		"visible_home": "/sandbox/home",
-		"key_word":     "value",
+		"home":     "/sandbox/home",
+		"key_word": "value",
 	}, []string{"/repo/e2e/setup.sh", "/repo/e2e/suite/setup.sh"})
 
 	for _, want := range []string{
@@ -168,7 +168,7 @@ func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
 		"MIRE_HOST_TMP=/tmp/host-tmp",
 		"MIRE_PATH_ENV=/tmp/bin",
 		"MIRE_KEY_WORD=value",
-		"MIRE_VISIBLE_HOME=/sandbox/home",
+		"MIRE_HOME=/sandbox/home",
 		"MIRE_SETUP_SCRIPTS=/repo/e2e/setup.sh\n/repo/e2e/suite/setup.sh",
 	} {
 		if !containsEnvEntry(env, want) {
@@ -186,7 +186,7 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 		hostTmp:  "/tmp/host-tmp",
 		pathEnv:  "/tmp/bin",
 	}, map[string]string{
-		"visible_home": "/sandbox/home",
+		"home": "/sandbox/home",
 	}, []string{"/repo/e2e/setup.sh"}, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
@@ -195,7 +195,7 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 		"MIRE_HOST_HOME=/tmp/host-home",
 		"MIRE_HOST_TMP=/tmp/host-tmp",
 		"MIRE_PATH_ENV=/tmp/bin",
-		"MIRE_VISIBLE_HOME=/sandbox/home",
+		"MIRE_HOME=/sandbox/home",
 		"MIRE_SETUP_SCRIPTS=/repo/e2e/setup.sh",
 		"MIRE_COMPARE_MARKER=1",
 	} {
@@ -251,10 +251,10 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 	testutil.MustMkdirAll(t, target)
 	mustWriteRecordShell(t, testDir)
 	sandboxConfig := map[string]string{
-		"visible_home": "/home/test",
-		"key_word":     "value",
+		"home":     "/home/test",
+		"key_word": "value",
 	}
-	visibleHome := sandboxConfig["visible_home"]
+	visibleHome := sandboxConfig["home"]
 
 	err := testutil.WithWorkingDir(t, root, func() error {
 		return withPromptedRecordStreams(
