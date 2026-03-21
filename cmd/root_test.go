@@ -226,8 +226,6 @@ func TestRunTest(t *testing.T) {
 			"RUN nested/b",
 			"PASS nested/b",
 			"Summary: total=2 passed=2 failed=0",
-			"echo one\n",
-			"echo two\n",
 		} {
 			if !strings.Contains(stdout, want) {
 				t.Fatalf("stdout = %q, want substring %q", stdout, want)

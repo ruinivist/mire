@@ -222,8 +222,8 @@ func replayScenario(scenario testScenario, shellPath string, tio testIO, sandbox
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
 	cmd.Stdin = bytes.NewReader(input)
-	cmd.Stdout = tio.out
-	cmd.Stderr = tio.err
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("replay failed: %v", err)

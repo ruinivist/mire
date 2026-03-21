@@ -66,7 +66,7 @@ func TestDiscoverTestScenariosRejectsMissingInFixture(t *testing.T) {
 	}
 }
 
-func TestReplayScenarioUsesRecordedInputAndStripsScriptWrapper(t *testing.T) {
+func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) {
 	addFakeRecordDependencies(t, "script")
 	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
 
@@ -97,8 +97,8 @@ func TestReplayScenarioUsesRecordedInputAndStripsScriptWrapper(t *testing.T) {
 	if got := readFile(t, capturedInput); got != "echo replay\nexit\n" {
 		t.Fatalf("captured stdin = %q, want recorded input", got)
 	}
-	if got := stdout.String(); !strings.Contains(got, "echo replay\nexit\n") {
-		t.Fatalf("stdout = %q, want streamed replay output", got)
+	if stdout.String() != "" {
+		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
 	if stderr.String() != "" {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
