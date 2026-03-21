@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"mire/internal/output"
+	"mire/internal/screen"
 )
 
 type testIO struct {
@@ -242,17 +243,27 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 	}
 	defer cleanupSandbox()
 
-	cmd := exec.Command("script", "-q", "-E", "always", "-O", rawOut, "-c", shellPath)
+	rawOutFile, err := os.Create(rawOut)
+	if err != nil {
+		return fmt.Errorf("failed to prepare replay output: %v", err)
+	}
+
+	cmd := exec.Command(shellPath)
 	cmd.Dir = scenario.dir
 	cmd.Env = recordSessionEnvWithExtra(sandbox, sandboxConfig, scenario.setupScripts, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
-	cmd.Stdin = bytes.NewReader(input)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
 
-	if err := cmd.Run(); err != nil {
+	if err := screen.Replay(screen.ReplayRequest{
+		Cmd:       cmd,
+		Input:     input,
+		OutputLog: rawOutFile,
+	}); err != nil {
+		rawOutFile.Close()
 		return fmt.Errorf("replay failed: %v", err)
+	}
+	if err := rawOutFile.Close(); err != nil {
+		return fmt.Errorf("failed to close replay output: %v", err)
 	}
 
 	got, err := loadRecordedOutput(rawOut)

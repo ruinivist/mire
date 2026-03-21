@@ -1,13 +1,11 @@
 package mire
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"mire/internal/testutil"
 )
@@ -18,15 +16,18 @@ func TestRecordCreatesRelativePath(t *testing.T) {
 	testutil.MustMkdirAll(t, testDir)
 	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
 	mustWriteRecordShell(t, testDir)
-	testutil.AddFakeRecordDependencies(t, "script")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
-	got := testutil.WithWorkingDir(t, root, func() string {
-		testutil.WithStdin(t, "y\n", func() {})
-		path, err := Record(filepath.Join("a", "b", "c") + string(os.PathSeparator))
-		if err != nil {
-			t.Fatalf("Record() error = %v", err)
-		}
-		return path
+	var got string
+	testutil.WithWorkingDir(t, root, func() struct{} {
+		testutil.CapturePromptedOutput(t, "exit\n", "Save recording?", "y\n", func() {
+			path, err := Record(filepath.Join("a", "b", "c") + string(os.PathSeparator))
+			if err != nil {
+				t.Fatalf("Record() error = %v", err)
+			}
+			got = path
+		})
+		return struct{}{}
 	})
 
 	want := filepath.Join(testDir, "a", "b", "c")
@@ -40,11 +41,11 @@ func TestRecordCreatesRelativePath(t *testing.T) {
 		}
 	}
 
-	if got := testutil.ReadFile(t, filepath.Join(want, "in")); got != "fake recorded input\n" {
-		t.Fatalf("saved in = %q, want %q", got, "fake recorded input\n")
+	if got := testutil.ReadFile(t, filepath.Join(want, "in")); got != "exit\n" {
+		t.Fatalf("saved in = %q, want %q", got, "exit\n")
 	}
-	if got := testutil.ReadFile(t, filepath.Join(want, "out")); got != "fake recorded output\n" {
-		t.Fatalf("saved out = %q, want %q", got, "fake recorded output\n")
+	if got := testutil.ReadFile(t, filepath.Join(want, "out")); got != "exit\r\nexit\r\n" {
+		t.Fatalf("saved out = %q, want %q", got, "exit\\r\\nexit\\r\\n")
 	}
 }
 
@@ -53,12 +54,12 @@ func TestRecordReturnsDiscardedErrorWhenSaveDeclined(t *testing.T) {
 	testDir := filepath.Join(root, "e2e")
 	testutil.MustMkdirAll(t, testDir)
 	mustWriteRecordShell(t, testDir)
-	testutil.AddFakeRecordDependencies(t, "script")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	err := testutil.WithWorkingDir(t, root, func() error {
 		target := filepath.Join(testDir, "a", "b", "c")
 		testutil.MustMkdirAll(t, target)
-		return withRecordStreams(t, "n\n", func(rio recordIO) error {
+		return withRecordStreams(t, "exit\nn\n", func(rio recordIO) error {
 			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil)
 		})
 	})
@@ -81,7 +82,6 @@ func TestRecordReturnsDiscardedErrorWhenOverwriteDeclined(t *testing.T) {
 	target := filepath.Join(testDir, "a", "b", "c")
 	testutil.MustMkdirAll(t, target)
 	mustWriteRecordShell(t, testDir)
-	testutil.AddFakeRecordDependencies(t, "script")
 	testutil.WriteFile(t, filepath.Join(target, "in"), "existing in\n")
 	testutil.WriteFile(t, filepath.Join(target, "out"), "existing out\n")
 
@@ -204,15 +204,12 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 	}
 }
 
-func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
-	testDir := filepath.Join(t.TempDir(), "e2e")
-	mustWriteRecordShell(t, testDir)
-	testutil.AddFakeRecordDependencies(t, "script")
-
-	argsPath := filepath.Join(t.TempDir(), "script.args")
-	commandBodyPath := filepath.Join(t.TempDir(), "script.command")
-	t.Setenv("FAKE_SCRIPT_ARGS_FILE", argsPath)
-	t.Setenv("FAKE_SCRIPT_COMMAND_BODY_FILE", commandBodyPath)
+func TestRunRecordSessionCapturesInputAndOutput(t *testing.T) {
+	shellPath := filepath.Join(t.TempDir(), "shell.sh")
+	testutil.WriteFile(t, shellPath, "#!/bin/sh\nprintf 'ready\\n'\nread line\nprintf 'seen:%s\\n' \"$line\"\n")
+	if err := os.Chmod(shellPath, 0o755); err != nil {
+		t.Fatalf("Chmod(%q) error = %v", shellPath, err)
+	}
 
 	sandbox, cleanup, err := newRecordSandboxForPathEnv(os.Getenv("PATH"))
 	if err != nil {
@@ -220,57 +217,29 @@ func TestRunRecordSessionUsesSandboxedScriptCommand(t *testing.T) {
 	}
 	defer cleanup()
 
-	shellPath := recordShellPath(testDir)
-	err = withRecordStreams(t, "", func(rio recordIO) error {
-		return runRecordSession(t.TempDir(), filepath.Join(t.TempDir(), "raw.in"), filepath.Join(t.TempDir(), "raw.out"), shellPath, sandbox, rio, defaultSandboxConfig(), []string{"/repo/e2e/setup.sh"})
+	rawIn := filepath.Join(t.TempDir(), "raw.in")
+	rawOut := filepath.Join(t.TempDir(), "raw.out")
+	err = withRecordStreams(t, "hello\n", func(rio recordIO) error {
+		return runRecordSession(t.TempDir(), rawIn, rawOut, shellPath, sandbox, rio, defaultSandboxConfig(), nil)
 	})
 	if err != nil {
 		t.Fatalf("runRecordSession() error = %v", err)
 	}
 
-	args := strings.Split(strings.TrimSpace(testutil.ReadFile(t, argsPath)), "\n")
-	if len(args) != 9 {
-		t.Fatalf("script args = %q, want 9 args", args)
-	}
-	if got := args[:4]; strings.Join(got, "\n") != strings.Join([]string{"-q", "-E", "always", "-I"}, "\n") {
-		t.Fatalf("script args prefix = %q, want %q", got, []string{"-q", "-E", "always", "-I"})
-	}
-	if args[5] != "-O" {
-		t.Fatalf("script args[5] = %q, want %q", args[5], "-O")
-	}
-	if args[7] != "-c" {
-		t.Fatalf("script args[7] = %q, want %q", args[7], "-c")
-	}
-	if args[8] != shellPath {
-		t.Fatalf("script args[8] = %q, want %q", args[8], shellPath)
+	if got := testutil.ReadFile(t, rawIn); got != "hello\n" {
+		t.Fatalf("raw in = %q, want %q", got, "hello\n")
 	}
 
-	body := testutil.ReadFile(t, commandBodyPath)
-	for _, want := range []string{
-		"host_home=${MIRE_HOST_HOME:?}",
-		"visible_home=${MIRE_VISIBLE_HOME:?}",
-		"bootstrap_rc=\"$host_home/.mire-shell-rc\"",
-		"visible_bootstrap_rc=\"$visible_home/.mire-shell-rc\"",
-		"for path in /tmp/mire-setup-scripts/*.sh; do",
-		"source \"$path\"",
-		`if [ -n "${MIRE_SETUP_SCRIPTS:-}" ]; then`,
-		`set -- "$@" --ro-bind "$host_path" "$visible_path"`,
-		`if [ "${MIRE_COMPARE_MARKER:-0}" = "1" ]; then`,
-		"printf '__MIRE_E2E_BEGIN__\\n'",
-		"--ro-bind / /",
-		"--tmpfs /home",
-		"--setenv HOME \"$visible_home\"",
-		"--setenv TMPDIR '/tmp'",
-		"exec bwrap \"$@\" bash --noprofile --rcfile \"$visible_bootstrap_rc\" -i",
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("wrapper = %q, want substring %q", body, want)
+	rawOutput := testutil.ReadFile(t, rawOut)
+	for _, want := range []string{"ready", "seen:hello"} {
+		if !strings.Contains(rawOutput, want) {
+			t.Fatalf("raw out = %q, want substring %q", rawOutput, want)
 		}
 	}
 }
 
 func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
-	testutil.RequireCommands(t, "script", "bwrap", "bash")
+	testutil.RequireCommands(t, "bwrap", "bash")
 
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
@@ -283,48 +252,19 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 	}
 	visibleHome := sandboxConfig["visible_home"]
 
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := reader.Close(); err != nil {
-			t.Fatalf("close pipe reader: %v", err)
-		}
-	})
-
-	writeDone := make(chan error, 1)
-	go func() {
-		defer close(writeDone)
-		defer writer.Close()
-
-		if _, err := writer.Write([]byte("pwd\necho \"$HOME\"\necho \"$MIRE_KEY_WORD\"\nif [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\npwd\nexit\n")); err != nil {
-			writeDone <- err
-			return
-		}
-
-		time.Sleep(300 * time.Millisecond)
-
-		if _, err := writer.Write([]byte("y\n")); err != nil {
-			writeDone <- err
-			return
-		}
-
-		writeDone <- nil
-	}()
-
-	err = testutil.WithWorkingDir(t, root, func() error {
-		return recordScenario(target, recordShellPath(testDir), recordIO{
-			in:  reader,
-			out: ioDiscard{},
-			err: &bytes.Buffer{},
-		}, sandboxConfig, nil)
+	err := testutil.WithWorkingDir(t, root, func() error {
+		return withPromptedRecordStreams(
+			t,
+			"pwd\necho \"$HOME\"\necho \"$MIRE_KEY_WORD\"\nif [ -e \"$HOME/repo\" ]; then echo FOUND; else echo MISSING; fi\npwd\nexit\n",
+			"y\n",
+			func(rio recordIO) error {
+				rio.out = ioDiscard{}
+				return recordScenario(target, recordShellPath(testDir), rio, sandboxConfig, nil)
+			},
+		)
 	})
 	if err != nil {
 		t.Fatalf("recordScenario() error = %v", err)
-	}
-	if err := <-writeDone; err != nil {
-		t.Fatalf("write session input: %v", err)
 	}
 
 	recordedIn := testutil.ReadFile(t, filepath.Join(target, "in"))
@@ -359,7 +299,6 @@ func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	testDir := filepath.Join(root, "e2e")
 	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
 	testutil.MustMkdirAll(t, testDir)
-	testutil.AddFakeRecordDependencies(t, "script")
 
 	target := filepath.Join(testDir, "suite", "spec")
 	err := testutil.WithWorkingDir(t, root, func() error {

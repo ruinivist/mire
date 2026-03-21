@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"mire/internal/testutil"
@@ -50,6 +51,56 @@ func withRecordStreams[T any](t *testing.T, input string, fn func(recordIO) T) T
 	})
 }
 
+func withPromptedRecordStreams[T any](t *testing.T, sessionInput, promptInput string, fn func(recordIO) T) T {
+	t.Helper()
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = reader.Close()
+		_ = writer.Close()
+	})
+
+	errWriter := &promptSignalBuffer{
+		marker: "Save recording?",
+		ready:  make(chan struct{}),
+	}
+
+	writeDone := make(chan error, 1)
+	go func() {
+		defer close(writeDone)
+		defer writer.Close()
+
+		if _, err := writer.Write([]byte(sessionInput)); err != nil {
+			writeDone <- err
+			return
+		}
+
+		<-errWriter.ready
+
+		if _, err := writer.Write([]byte(promptInput)); err != nil {
+			writeDone <- err
+			return
+		}
+
+		writeDone <- nil
+	}()
+
+	result := fn(recordIO{
+		in:  reader,
+		out: ioDiscard{},
+		err: errWriter,
+	})
+
+	if err := <-writeDone; err != nil {
+		t.Fatalf("write record input: %v", err)
+	}
+
+	return result
+}
+
 type ioDiscard struct{}
 
 func (ioDiscard) Write(p []byte) (int, error) {
@@ -89,4 +140,21 @@ func containsEnvKey(env []string, key string) bool {
 	}
 
 	return false
+}
+
+type promptSignalBuffer struct {
+	bytes.Buffer
+	marker string
+	ready  chan struct{}
+	once   sync.Once
+}
+
+func (b *promptSignalBuffer) Write(p []byte) (int, error) {
+	n, err := b.Buffer.Write(p)
+	if strings.Contains(b.Buffer.String(), b.marker) {
+		b.once.Do(func() {
+			close(b.ready)
+		})
+	}
+	return n, err
 }

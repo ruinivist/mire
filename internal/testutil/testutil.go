@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -47,6 +49,113 @@ func CaptureOutput(t *testing.T, fn func()) (string, string) {
 
 	var stderrBuf bytes.Buffer
 	if _, err := io.Copy(&stderrBuf, stderrReader); err != nil {
+		t.Fatalf("stderr copy error = %v", err)
+	}
+
+	return stdoutBuf.String(), stderrBuf.String()
+}
+
+func CapturePromptedOutput(t *testing.T, sessionInput, promptMarker, promptInput string, fn func()) (string, string) {
+	t.Helper()
+	t.Setenv("NO_COLOR", "1")
+
+	stdinReader, stdinWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() stdin error = %v", err)
+	}
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() stdout error = %v", err)
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() stderr error = %v", err)
+	}
+
+	oldStdin := os.Stdin
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	os.Stdin = stdinReader
+	os.Stdout = stdoutWriter
+	os.Stderr = stderrWriter
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	})
+
+	var stdinOnce sync.Once
+	closeStdin := func() {
+		stdinOnce.Do(func() {
+			_ = stdinWriter.Close()
+		})
+	}
+	t.Cleanup(closeStdin)
+
+	var stdoutBuf bytes.Buffer
+	stdoutDone := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(&stdoutBuf, stdoutReader)
+		stdoutDone <- err
+	}()
+
+	var stderrBuf bytes.Buffer
+	var promptOnce sync.Once
+	stderrDone := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, readErr := stderrReader.Read(buf)
+			if n > 0 {
+				if _, err := stderrBuf.Write(buf[:n]); err != nil {
+					stderrDone <- err
+					return
+				}
+				if promptMarker != "" && strings.Contains(stderrBuf.String(), promptMarker) {
+					promptOnce.Do(func() {
+						if _, err := stdinWriter.Write([]byte(promptInput)); err != nil {
+							stderrDone <- err
+							return
+						}
+						closeStdin()
+					})
+				}
+			}
+			if readErr == nil {
+				continue
+			}
+			if readErr == io.EOF {
+				stderrDone <- nil
+				return
+			}
+			stderrDone <- readErr
+			return
+		}
+	}()
+
+	go func() {
+		if _, err := stdinWriter.Write([]byte(sessionInput)); err != nil {
+			return
+		}
+		if promptMarker == "" {
+			closeStdin()
+		}
+	}()
+
+	fn()
+
+	closeStdin()
+	if err := stdoutWriter.Close(); err != nil {
+		t.Fatalf("stdout close error = %v", err)
+	}
+	if err := stderrWriter.Close(); err != nil {
+		t.Fatalf("stderr close error = %v", err)
+	}
+
+	if err := <-stdoutDone; err != nil {
+		t.Fatalf("stdout copy error = %v", err)
+	}
+	if err := <-stderrDone; err != nil {
 		t.Fatalf("stderr copy error = %v", err)
 	}
 
@@ -235,12 +344,72 @@ fi
 exit 0
 `
 		}
+		if name == "bwrap" {
+			body = `#!/bin/sh
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --ro-bind|--bind|--setenv)
+      shift 3
+      ;;
+    --tmpfs|--chdir)
+      shift 2
+      ;;
+    --dev|--proc)
+      shift 2
+      ;;
+    --unshare-pid|--die-with-parent)
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ "$#" -eq 0 ]; then
+  exit 0
+fi
+
+exec "$@"
+`
+		}
+		if name == "bash" {
+			body = `#!/bin/sh
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --noprofile|--norc|-i)
+      shift
+      ;;
+    --rcfile)
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+/bin/stty -echo 2>/dev/null || true
+while IFS= read -r line || [ -n "$line" ]; do
+  printf '%s\n' "$line"
+  if [ "$line" = "exit" ]; then
+    break
+  fi
+done
+exit 0
+`
+		}
 		if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", path, err)
 		}
 	}
 
-	t.Setenv("PATH", binDir)
+	oldPath := os.Getenv("PATH")
+	if oldPath == "" {
+		t.Setenv("PATH", binDir)
+		return
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+oldPath)
 }
 
 func RequireCommands(t *testing.T, names ...string) {

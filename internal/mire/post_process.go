@@ -35,6 +35,10 @@ func loadRecordedOutput(path string) ([]byte, error) {
 		return nil, err
 	}
 
+	if !hasScriptWrapper(data) {
+		return data, nil
+	}
+
 	return stripScriptWrapper(data)
 }
 

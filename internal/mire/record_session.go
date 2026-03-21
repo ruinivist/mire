@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"mire/internal/output"
+	"mire/internal/screen"
 )
 
 type recordIO struct {
@@ -120,13 +121,35 @@ func newRecordSandboxForPathEnv(pathEnv string) (recordSandbox, func(), error) {
 }
 
 func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbox, rio recordIO, sandboxConfig map[string]string, setupScripts []string) error {
-	cmd := exec.Command("script", "-q", "-E", "always", "-I", rawIn, "-O", rawOut, "-c", shellPath)
+	rawInFile, err := os.Create(rawIn)
+	if err != nil {
+		return err
+	}
+	defer rawInFile.Close()
+
+	rawOutFile, err := os.Create(rawOut)
+	if err != nil {
+		return err
+	}
+	defer rawOutFile.Close()
+
+	cmd := exec.Command(shellPath)
 	cmd.Dir = dir
 	cmd.Env = recordSessionEnv(sandbox, sandboxConfig, setupScripts)
-	cmd.Stdin = rio.in
-	cmd.Stdout = rio.out
-	cmd.Stderr = rio.err
-	return cmd.Run()
+
+	var tty *os.File
+	if file, ok := rio.in.(*os.File); ok {
+		tty = file
+	}
+
+	return screen.Record(screen.RecordRequest{
+		Cmd:       cmd,
+		Input:     rio.in,
+		Output:    rio.out,
+		TTY:       tty,
+		InputLog:  rawInFile,
+		OutputLog: rawOutFile,
+	})
 }
 
 func confirmRecordOverwrite(target string, rio recordIO) (bool, error) {

@@ -2,6 +2,7 @@ package mire
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -90,17 +91,13 @@ func TestDiscoverTestScenariosRejectsMissingInFixture(t *testing.T) {
 }
 
 func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script")
-	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	shellPath := filepath.Join(testDir, "shell.sh")
 	mustWriteRecordShell(t, testDir)
 	scenarioDir := filepath.Join(testDir, "suite", "spec")
-	testutil.WriteScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
-
-	capturedInput := filepath.Join(t.TempDir(), "stdin.capture")
-	t.Setenv("FAKE_SCRIPT_CAPTURE_STDIN_FILE", capturedInput)
+	testutil.WriteScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\r\nexit\r\n")
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -118,9 +115,6 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 		t.Fatalf("replayScenario() error = %v", err)
 	}
 
-	if got := testutil.ReadFile(t, capturedInput); got != "echo replay\nexit\n" {
-		t.Fatalf("captured stdin = %q, want recorded input", got)
-	}
 	if stdout.String() != "" {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
@@ -130,12 +124,12 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 }
 
 func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script")
-	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
-
 	testDir := filepath.Join(t.TempDir(), "e2e")
 	shellPath := filepath.Join(testDir, "shell.sh")
 	testutil.WriteFile(t, shellPath, "#!/bin/sh\n")
+	if err := os.Chmod(shellPath, 0o755); err != nil {
+		t.Fatalf("Chmod(%q) error = %v", shellPath, err)
+	}
 	scenarioDir := filepath.Join(testDir, "suite", "spec")
 	testutil.WriteScenarioFixtures(t, scenarioDir, "echo replay\nexit\n", "echo replay\nexit\n")
 

@@ -10,7 +10,7 @@ import (
 )
 
 func TestRunShowsHelpWhenNoArgs(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	stdout, stderr := testutil.CaptureOutput(t, func() {
 		if got := Run(nil); got != 0 {
@@ -31,7 +31,7 @@ func TestRunShowsHelpWhenNoArgs(t *testing.T) {
 
 func TestRunInit(t *testing.T) {
 	root := t.TempDir()
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	testutil.WithWorkingDir(t, root, func() struct{} {
 		stdout, stderr := testutil.CaptureOutput(t, func() {
@@ -62,7 +62,7 @@ func TestRunInit(t *testing.T) {
 }
 
 func TestRunRecord(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	root := t.TempDir()
 	wantDir := filepath.Join(root, "e2e")
@@ -80,16 +80,15 @@ func TestRunRecord(t *testing.T) {
 			t.Fatalf("stderr = %q, want empty", initStderr)
 		}
 
-		testutil.WithStdin(t, "y\n", func() {})
-		stdout, stderr := testutil.CaptureOutput(t, func() {
+		stdout, stderr := testutil.CapturePromptedOutput(t, "exit\n", "Save recording?", "y\n", func() {
 			if got := Run([]string{"record", "suite/spec"}); got != 0 {
 				t.Fatalf("Run() code = %d, want %d", got, 0)
 			}
 		})
 
 		createdPath := filepath.Join(wantDir, "suite", "spec")
-		if stdout != prefixed(createdPath+"\n") {
-			t.Fatalf("stdout = %q, want %q", stdout, prefixed(createdPath+"\n"))
+		if !strings.Contains(stdout, createdPath) {
+			t.Fatalf("stdout = %q, want created path", stdout)
 		}
 		if !strings.Contains(stderr, "Save recording?") {
 			t.Fatalf("stderr = %q, want save prompt", stderr)
@@ -118,7 +117,7 @@ func TestRunInitFailsWhenDependenciesMissing(t *testing.T) {
 		if stdout != "" {
 			t.Fatalf("stdout = %q, want empty", stdout)
 		}
-		if !strings.Contains(stderr, `required command "script" not found in PATH`) {
+		if !strings.Contains(stderr, `required command "bwrap" not found in PATH`) {
 			t.Fatalf("stderr = %q, want missing dependency error", stderr)
 		}
 		if _, err := os.Stat(filepath.Join(root, "mire.toml")); !os.IsNotExist(err) {
@@ -132,7 +131,7 @@ func TestRunInitFailsWhenDependenciesMissing(t *testing.T) {
 }
 
 func TestRunRecordMissingPath(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	stdout, stderr := testutil.CaptureOutput(t, func() {
 		if got := Run([]string{"record"}); got != 1 {
@@ -152,12 +151,11 @@ func TestRunRecordMissingPath(t *testing.T) {
 }
 
 func TestRunTest(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
-	t.Setenv("FAKE_SCRIPT_ECHO_STDIN", "1")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	root := t.TempDir()
-	testutil.WriteScenarioFixtures(t, filepath.Join(root, "e2e", "a"), "echo one\n", "echo one\n")
-	testutil.WriteScenarioFixtures(t, filepath.Join(root, "e2e", "nested", "b"), "echo two\n", "echo two\n")
+	testutil.WriteScenarioFixtures(t, filepath.Join(root, "e2e", "a"), "echo one\n", "echo one\r\n")
+	testutil.WriteScenarioFixtures(t, filepath.Join(root, "e2e", "nested", "b"), "echo two\n", "echo two\r\n")
 
 	testutil.WithWorkingDir(t, root, func() struct{} {
 		initStdout, initStderr := testutil.CaptureOutput(t, func() {
@@ -198,7 +196,7 @@ func TestRunTest(t *testing.T) {
 }
 
 func TestRunTestExtraArgs(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	stdout, stderr := testutil.CaptureOutput(t, func() {
 		if got := Run([]string{"test", "a", "b"}); got != 1 {
@@ -218,7 +216,7 @@ func TestRunTestExtraArgs(t *testing.T) {
 }
 
 func TestRunInitExtraArgs(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	stdout, stderr := testutil.CaptureOutput(t, func() {
 		if got := Run([]string{"init", "extra"}); got != 1 {
@@ -238,7 +236,7 @@ func TestRunInitExtraArgs(t *testing.T) {
 }
 
 func TestRunUnknownCommand(t *testing.T) {
-	testutil.AddFakeRecordDependencies(t, "script", "bwrap", "bash")
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
 	stdout, stderr := testutil.CaptureOutput(t, func() {
 		if got := Run([]string{"wat"}); got != 1 {
