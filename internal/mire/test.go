@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"mire/internal/output"
-	"mire/internal/screen"
+	"mire/internal/script"
 )
 
 type testIO struct {
@@ -265,7 +265,7 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 	promptTimeout := time.AfterFunc(replayPromptReadyTimeout, promptWriter.release)
 	defer promptTimeout.Stop()
 
-	if err := screen.Replay(screen.ReplayRequest{
+	if err := script.Replay(script.ReplayRequest{
 		Cmd:        cmd,
 		Input:      input,
 		InputReady: ready,

@@ -1,4 +1,15 @@
-package screen
+/*
+Intially mire dependend on screen(1)
+But that had some quite a few issues
+- kernel tty line discipline: script controlled a slave bash terminal so backspaces if any
+were truncated due to output piping as the bash propmt wasn't ready. Initially we moves to
+do disable that as a pty option entirely. That broke echo so now we have a marker based
+approach which I guess would've worked in screen to.
+- Second issue, screen runs took ~200 ms while with this custom one it's 8ms for the same
+fixtures so this was kept.
+*/
+
+package script
 
 import (
 	"bytes"
@@ -19,7 +30,7 @@ const (
 	defaultRows            = 24
 	defaultCols            = 80
 	terminalEOF            = byte(0x04)
-	replayReadySettleDelay = 10 * time.Millisecond
+	replayReadySettleDelay = 5 * time.Millisecond
 )
 
 type RecordRequest struct {
@@ -38,6 +49,7 @@ type ReplayRequest struct {
 	OutputLog  io.Writer
 }
 
+// Record runs a live PTY session so we can mirror interactive output while capturing stable input and output logs.
 func Record(req RecordRequest) error {
 	if req.Cmd == nil {
 		return errors.New("record session command is required")
@@ -55,9 +67,13 @@ func Record(req RecordRequest) error {
 	}
 	defer restoreTTY()
 
+	// Keep the child PTY aligned with the real terminal so full-screen apps
+	// redraw against the size the user is actually seeing.
 	stopResize := watchResize(req.TTY, ptmx)
 	defer stopResize()
 
+	// Duplicate file-backed input so the stop path can close our copy without
+	// accidentally tearing down the caller's stdin handle.
 	input, closeInput, err := duplicateInput(req.Input)
 	if err != nil {
 		return err
@@ -81,6 +97,7 @@ func Record(req RecordRequest) error {
 	return firstErr(waitErr, outputErr, inputErr)
 }
 
+// Replay feeds recorded keystrokes back into a fresh PTY session to verify behavior against captured output.
 func Replay(req ReplayRequest) error {
 	if req.Cmd == nil {
 		return errors.New("replay session command is required")
@@ -106,6 +123,7 @@ func Replay(req ReplayRequest) error {
 	return firstErr(waitErr, outputErr, inputErr)
 }
 
+// combineWriters skips nil destinations so callers can fan out conditionally without repeated nil checks.
 func combineWriters(writers ...io.Writer) io.Writer {
 	active := make([]io.Writer, 0, len(writers))
 	for _, writer := range writers {
@@ -124,6 +142,7 @@ func combineWriters(writers ...io.Writer) io.Writer {
 	}
 }
 
+// copyAsync moves a stream in the background so PTY input and output can progress concurrently.
 func copyAsync(dst io.Writer, src io.Reader) <-chan error {
 	done := make(chan error, 1)
 	go func() {
@@ -133,12 +152,15 @@ func copyAsync(dst io.Writer, src io.Reader) <-chan error {
 	return done
 }
 
+// copyAsyncWhenReady delays replay input until the child shell is ready enough to receive it reliably.
 func copyAsyncWhenReady(dst io.Writer, src io.Reader, ready <-chan struct{}, stop <-chan struct{}) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		if ready != nil {
 			select {
 			case <-ready:
+				// Some programs signal readiness before they have finished their
+				// first prompt, so we wait briefly to avoid replaying input too early.
 				time.Sleep(replayReadySettleDelay)
 			case <-stop:
 				done <- nil
@@ -151,6 +173,7 @@ func copyAsyncWhenReady(dst io.Writer, src io.Reader, ready <-chan struct{}, sto
 	return done
 }
 
+// replayInput appends terminal EOF so non-interactive replays still tell the shell when scripted input is finished.
 func replayInput(input []byte) []byte {
 	if len(input) > 0 && input[len(input)-1] == terminalEOF {
 		return input
@@ -162,6 +185,7 @@ func replayInput(input []byte) []byte {
 	return data
 }
 
+// copyInputAsync gives file-backed input an interruptible read loop so shutdown does not hang on blocked stdin reads.
 func copyInputAsync(dst io.Writer, src io.Reader) (<-chan error, func(), error) {
 	file, ok := src.(*os.File)
 	if !ok {
@@ -179,6 +203,8 @@ func copyInputAsync(dst io.Writer, src io.Reader) (<-chan error, func(), error) 
 		defer stopReader.Close()
 
 		buf := make([]byte, 4096)
+		// Poll lets us break out of a blocked terminal read immediately when the
+		// session ends instead of waiting for the next keystroke.
 		fds := []unix.PollFd{
 			{Fd: int32(file.Fd()), Events: unix.POLLIN | unix.POLLHUP},
 			{Fd: int32(stopReader.Fd()), Events: unix.POLLIN | unix.POLLHUP},
@@ -223,6 +249,7 @@ func copyInputAsync(dst io.Writer, src io.Reader) (<-chan error, func(), error) 
 	return done, stop, nil
 }
 
+// normalizeCopyError treats expected PTY shutdown conditions as success so callers only see actionable failures.
 func normalizeCopyError(err error) error {
 	switch {
 	case err == nil:
@@ -238,6 +265,7 @@ func normalizeCopyError(err error) error {
 	}
 }
 
+// firstErr preserves the earliest real failure because later shutdown errors are often just fallout.
 func firstErr(errs ...error) error {
 	for _, err := range errs {
 		if err != nil {
@@ -247,6 +275,7 @@ func firstErr(errs ...error) error {
 	return nil
 }
 
+// sessionSize prefers the caller's terminal geometry so interactive programs render as if they were attached directly.
 func sessionSize(tty *os.File) *pty.Winsize {
 	if tty != nil && term.IsTerminal(int(tty.Fd())) {
 		if cols, rows, err := term.GetSize(int(tty.Fd())); err == nil {
@@ -263,11 +292,14 @@ func sessionSize(tty *os.File) *pty.Winsize {
 	}
 }
 
+// makeRaw disables local terminal processing so the child PTY sees the user's exact keystrokes and control bytes.
 func makeRaw(tty *os.File) (func(), error) {
 	if tty == nil || !term.IsTerminal(int(tty.Fd())) {
 		return func() {}, nil
 	}
 
+	// Raw mode lets the child process receive keystrokes and control sequences
+	// directly instead of having the local terminal preprocess them first.
 	state, err := term.MakeRaw(int(tty.Fd()))
 	if err != nil {
 		return nil, err
@@ -278,6 +310,7 @@ func makeRaw(tty *os.File) (func(), error) {
 	}, nil
 }
 
+// watchResize forwards host terminal resizes so curses-style apps redraw against the current viewport.
 func watchResize(tty *os.File, ptmx *os.File) func() {
 	if tty == nil || !term.IsTerminal(int(tty.Fd())) {
 		return func() {}
@@ -309,6 +342,7 @@ func watchResize(tty *os.File, ptmx *os.File) func() {
 	}
 }
 
+// duplicateInput gives the recorder ownership of file-backed input without mutating the caller's descriptor lifecycle.
 func duplicateInput(input io.Reader) (io.Reader, func(), error) {
 	if input == nil {
 		return bytes.NewReader(nil), func() {}, nil
@@ -324,6 +358,8 @@ func duplicateInput(input io.Reader) (io.Reader, func(), error) {
 		return nil, nil, err
 	}
 
+	// The recorder may need to close its input to stop cleanly, but that should
+	// only affect the duplicated descriptor it owns.
 	dup := os.NewFile(uintptr(fd), file.Name())
 	return dup, func() {
 		_ = dup.Close()
@@ -334,6 +370,7 @@ type inputLogWriter struct {
 	dst io.Writer
 }
 
+// newInputLogWriter hides optional logging behind a writer so the input path stays linear.
 func newInputLogWriter(dst io.Writer) io.Writer {
 	if dst == nil {
 		return io.Discard
@@ -341,10 +378,13 @@ func newInputLogWriter(dst io.Writer) io.Writer {
 	return inputLogWriter{dst: dst}
 }
 
+// Write normalizes terminal line endings so recorded input fixtures are easy to diff and reuse.
 func (w inputLogWriter) Write(p []byte) (int, error) {
 	normalized := make([]byte, len(p))
 	for i, b := range p {
 		if b == '\r' {
+			// Logs are easier to diff and replay reasoning against when Enter is
+			// stored as a regular newline instead of terminal carriage returns.
 			normalized[i] = '\n'
 			continue
 		}

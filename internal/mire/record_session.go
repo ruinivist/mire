@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"mire/internal/output"
-	"mire/internal/screen"
+	"mire/internal/script"
 )
 
 type recordIO struct {
@@ -142,7 +142,7 @@ func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbo
 		tty = file
 	}
 
-	return screen.Record(screen.RecordRequest{
+	return script.Record(script.RecordRequest{
 		Cmd:       cmd,
 		Input:     rio.in,
 		Output:    rio.out,
