@@ -41,9 +41,9 @@ func recordScenario(target, shellPath string, rio recordIO, sandboxConfig map[st
 
 	output.Fprintln(rio.err, "Run commands in the recorder shell, then type exit to finish.")
 
-	if err := runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio, sandboxConfig, setupScripts); err != nil {
-		return err
-	}
+	// this error is intentionally discarded to avoid non zero exit status inside record
+	// as an error
+	runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio, sandboxConfig, setupScripts)
 
 	save, err := confirmRecordSave(rio)
 	if err != nil {

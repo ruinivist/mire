@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 
-# hoisted vars to fail fast if any missing
 host_home=${MIRE_HOST_HOME:?}
 host_tmp=${MIRE_HOST_TMP:?}
 path_env=${MIRE_PATH_ENV:?}
