@@ -102,7 +102,7 @@ func runTests(path string, tio testIO) error {
 		output.Fprintf(tio.out, "%s %s\n", output.Label("RUN", output.Info), scenario.relPath)
 
 		start := time.Now()
-		if err := replayScenario(scenario, shellPath, tio, cfg.Sandbox, cfg.Mounts); err != nil {
+		if err := replayScenario(scenario, shellPath, tio, cfg.Sandbox, cfg.Mounts, cfg.Paths); err != nil {
 			elapsed := time.Since(start)
 			summary.failed++
 			output.Fprintf(tio.out, "%s %s (%s): %v\n", output.Label("FAIL", output.Fail), scenario.relPath, formatElapsed(elapsed), err)
@@ -231,7 +231,7 @@ func discoverTestScenarios(discoveryRoot, displayRoot string) ([]testScenario, e
 	return scenarios, nil
 }
 
-func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxConfig map[string]string, mounts []string) error {
+func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxConfig map[string]string, mounts, paths []string) error {
 	input, err := loadRecordedInput(scenario.inPath)
 	if err != nil {
 		return fmt.Errorf("failed to read recorded input: %v", err)
@@ -256,7 +256,7 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 
 	cmd := exec.Command(shellPath)
 	cmd.Dir = scenario.dir
-	cmd.Env = recordSessionEnvWithExtra(sandbox, sandboxConfig, mounts, scenario.setupScripts, map[string]string{
+	cmd.Env = recordSessionEnvWithExtra(sandbox, sandboxConfig, mounts, paths, scenario.setupScripts, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
 

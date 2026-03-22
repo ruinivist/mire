@@ -8,6 +8,7 @@ visible_home=${MIRE_HOME:?}
 bootstrap_rc="$host_home/.mire-shell-rc"
 visible_bootstrap_rc="$visible_home/.mire-shell-rc"
 setup_scripts_dir='/tmp/mire-setup-scripts'
+visible_bin_dir='/mire/bin'
 
 cat >"$bootstrap_rc" <<'EOF'
 cd "${HOME:?}"
@@ -37,6 +38,8 @@ EOF
 set -- \
   --ro-bind / / \
   --tmpfs /home \
+  --tmpfs /mire \
+  --dir "$visible_bin_dir" \
   --bind "$host_home" "$visible_home" \
   --bind "$host_tmp" '/tmp' \
   --dev /dev \
@@ -48,7 +51,7 @@ set -- \
   --setenv LANG 'C' \
   --setenv LC_ALL 'C' \
   --setenv PAGER 'cat' \
-  --setenv PATH "$path_env" \
+  --setenv PATH "$visible_bin_dir:$path_env" \
   --setenv PS1 '$ ' \
   --setenv TERM 'xterm-256color' \
   --setenv TMPDIR '/tmp' \
@@ -75,6 +78,16 @@ if [ -n "${MIRE_MOUNTS:-}" ]; then
     set -- "$@" --ro-bind "$host_path" "$sandbox_path"
   done <<EOF
 ${MIRE_MOUNTS-}
+EOF
+fi
+
+if [ -n "${MIRE_PATHS:-}" ]; then
+  while IFS= read -r host_path || [ -n "$host_path" ]; do
+    [ -n "$host_path" ] || continue
+    visible_path=$visible_bin_dir/${host_path##*/}
+    set -- "$@" --ro-bind "$host_path" "$visible_path"
+  done <<EOF
+${MIRE_PATHS-}
 EOF
 fi
 

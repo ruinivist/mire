@@ -14,6 +14,7 @@ const recordShellName = "shell.sh"
 
 const (
 	mountsEnvName             = "MIRE_MOUNTS"
+	pathsEnvName              = "MIRE_PATHS"
 	compareMarkerEnvName      = "MIRE_COMPARE_MARKER"
 	compareMarkerEnabledValue = "1"
 	compareOutputMarker       = "__MIRE_PROMPT_READY__"
@@ -80,17 +81,18 @@ func buildRecordShellScript() string {
 	return string(body)
 }
 
-func recordSessionEnv(sandbox recordSandbox, sandboxConfig map[string]string, mounts, setupScripts []string) []string {
-	return recordSessionEnvWithExtra(sandbox, sandboxConfig, mounts, setupScripts, nil)
+func recordSessionEnv(sandbox recordSandbox, sandboxConfig map[string]string, mounts, paths, setupScripts []string) []string {
+	return recordSessionEnvWithExtra(sandbox, sandboxConfig, mounts, paths, setupScripts, nil)
 }
 
-func recordSessionEnvWithExtra(sandbox recordSandbox, sandboxConfig map[string]string, mounts, setupScripts []string, extraEnv map[string]string) []string {
+func recordSessionEnvWithExtra(sandbox recordSandbox, sandboxConfig map[string]string, mounts, paths, setupScripts []string, extraEnv map[string]string) []string {
 	env := append([]string{}, os.Environ()...)
 	env = append(env,
 		"MIRE_HOST_HOME="+sandbox.hostHome,
 		"MIRE_HOST_TMP="+sandbox.hostTmp,
 		"MIRE_PATH_ENV="+sandbox.pathEnv,
 		mountsEnvName+"="+strings.Join(mounts, "\n"),
+		pathsEnvName+"="+strings.Join(paths, "\n"),
 		setupScriptsEnvName+"="+strings.Join(setupScripts, "\n"),
 	)
 	for _, key := range sortedKeys(sandboxConfig) {

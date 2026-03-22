@@ -15,13 +15,14 @@ func TestReadConfig(t *testing.T) {
 		wantDir     string
 		wantSandbox map[string]string
 		wantMounts  []string
+		wantPaths   []string
 		wantErr     string
 		wantMissing bool
-		setup       func(t *testing.T, dir string) (string, []string)
+		setup       func(t *testing.T, dir string) (string, []string, []string)
 	}{
 		{
 			name: "with test dir and sandbox",
-			setup: func(t *testing.T, dir string) (string, []string) {
+			setup: func(t *testing.T, dir string) (string, []string, []string) {
 				hostData := filepath.Join(dir, "host-data")
 				hostCache := filepath.Join(dir, "host-cache")
 				for _, path := range []string{hostData, hostCache} {
@@ -29,8 +30,9 @@ func TestReadConfig(t *testing.T) {
 						t.Fatalf("MkdirAll(%q) error = %v", path, err)
 					}
 				}
-				return "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = [\"" + hostData + ":/sandbox/data\", \"" + hostCache + ":/sandbox/cache\"]\nkey_word = \"value\"\n",
-					[]string{hostData + ":/sandbox/data", hostCache + ":/sandbox/cache"}
+				return "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = [\"" + hostData + ":/sandbox/data\", \"" + hostCache + ":/sandbox/cache\"]\npaths = []\nkey_word = \"value\"\n",
+					[]string{hostData + ":/sandbox/data", hostCache + ":/sandbox/cache"},
+					nil
 			},
 			wantDir: "custom/suite",
 			wantSandbox: map[string]string{
@@ -65,37 +67,37 @@ func TestReadConfig(t *testing.T) {
 		},
 		{
 			name:    "without required home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nmounts = []\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nmounts = []\npaths = []\n",
 			wantErr: "missing required sandbox.home",
 		},
 		{
 			name:    "without required mounts",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\npaths = []\n",
 			wantErr: "missing required sandbox.mounts",
 		},
 		{
 			name:    "empty required home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"\"\nmounts = []\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"\"\nmounts = []\npaths = []\n",
 			wantErr: "empty sandbox.home",
 		},
 		{
 			name:    "relative home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"home/test\"\nmounts = []\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"home/test\"\nmounts = []\npaths = []\n",
 			wantErr: "sandbox.home must be an absolute path",
 		},
 		{
 			name:    "invalid sandbox key",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\nKeyWord = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\npaths = []\nKeyWord = \"value\"\n",
 			wantErr: "invalid sandbox key",
 		},
 		{
 			name:    "non string sandbox value",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\nkey_word = 1\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\npaths = []\nkey_word = 1\n",
 			wantErr: "sandbox.key_word must be a string",
 		},
 		{
 			name:    "mounts wrong type",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = \"oops\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = \"oops\"\npaths = []\n",
 			wantErr: "failed to read",
 		},
 		{
@@ -109,13 +111,14 @@ func TestReadConfig(t *testing.T) {
 		},
 		{
 			name: "normalizes relative mount host path",
-			setup: func(t *testing.T, dir string) (string, []string) {
+			setup: func(t *testing.T, dir string) (string, []string, []string) {
 				hostBuild := filepath.Join(dir, "build")
 				if err := os.MkdirAll(hostBuild, 0o755); err != nil {
 					t.Fatalf("MkdirAll(%q) error = %v", hostBuild, err)
 				}
-				return "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = [\"./build:/sandbox/build\"]\n",
-					[]string{hostBuild + ":/sandbox/build"}
+				return "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = [\"./build:/sandbox/build\"]\npaths = []\n",
+					[]string{hostBuild + ":/sandbox/build"},
+					nil
 			},
 			wantDir: "custom/suite",
 			wantSandbox: map[string]string{
@@ -123,9 +126,23 @@ func TestReadConfig(t *testing.T) {
 			},
 		},
 		{
-			name:    "missing mount host path",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = [\"./missing:/sandbox/build\"]\n",
-			wantErr: "sandbox mount host path",
+			name: "normalizes relative paths host path",
+			setup: func(t *testing.T, dir string) (string, []string, []string) {
+				hostTool := filepath.Join(dir, "build", "mend")
+				if err := os.MkdirAll(filepath.Dir(hostTool), 0o755); err != nil {
+					t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(hostTool), err)
+				}
+				if err := os.WriteFile(hostTool, []byte("tool"), 0o644); err != nil {
+					t.Fatalf("WriteFile(%q) error = %v", hostTool, err)
+				}
+				return "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\npaths = [\"./build/mend\"]\n",
+					nil,
+					[]string{hostTool}
+			},
+			wantDir: "custom/suite",
+			wantSandbox: map[string]string{
+				"home": "/home/test",
+			},
 		},
 	}
 
@@ -134,9 +151,10 @@ func TestReadConfig(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "mire.toml")
 			wantMounts := tt.wantMounts
+			wantPaths := tt.wantPaths
 			content := tt.content
 			if tt.setup != nil {
-				content, wantMounts = tt.setup(t, dir)
+				content, wantMounts, wantPaths = tt.setup(t, dir)
 			}
 			if !tt.wantMissing {
 				if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -182,6 +200,14 @@ func TestReadConfig(t *testing.T) {
 					t.Fatalf("ReadConfig() Mounts[%d] = %q, want %q", i, got.Mounts[i], want)
 				}
 			}
+			if len(got.Paths) != len(wantPaths) {
+				t.Fatalf("ReadConfig() Paths = %#v, want %#v", got.Paths, wantPaths)
+			}
+			for i, want := range wantPaths {
+				if got.Paths[i] != want {
+					t.Fatalf("ReadConfig() Paths[%d] = %q, want %q", i, got.Paths[i], want)
+				}
+			}
 		})
 	}
 }
@@ -205,5 +231,8 @@ func TestWriteDefaultConfig(t *testing.T) {
 	}
 	if len(got.Mounts) != 0 {
 		t.Fatalf("ReadConfig() Mounts = %#v, want empty", got.Mounts)
+	}
+	if len(got.Paths) != 0 {
+		t.Fatalf("ReadConfig() Paths = %#v, want empty", got.Paths)
 	}
 }

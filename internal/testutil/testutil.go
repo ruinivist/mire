@@ -357,7 +357,7 @@ while [ "$#" -gt 0 ]; do
     --ro-bind|--bind|--setenv)
       shift 3
       ;;
-    --tmpfs|--chdir)
+    --tmpfs|--chdir|--dir)
       shift 2
       ;;
     --dev|--proc)
@@ -444,5 +444,5 @@ func MustGitInit(t *testing.T, dir string) {
 }
 
 func validConfigContent(testDir string) string {
-	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\n"
+	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\npaths = []\n"
 }

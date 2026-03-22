@@ -25,6 +25,7 @@ type Config struct {
 	TestDir string
 	Sandbox map[string]string
 	Mounts  []string
+	Paths   []string
 }
 
 type tomlConfig struct {
@@ -39,6 +40,7 @@ type tomlMireConfig struct {
 type tomlSandboxConfig struct {
 	Home   string   `toml:"home"`
 	Mounts []string `toml:"mounts"`
+	Paths  []string `toml:"paths"`
 }
 
 //go:embed mire.toml
@@ -77,8 +79,11 @@ func ReadConfig(path string) (Config, error) {
 	if !meta.IsDefined("sandbox", "mounts") {
 		return Config{}, fmt.Errorf("failed to read %s: missing required sandbox.mounts", path)
 	}
+	if !meta.IsDefined("sandbox", "paths") {
+		return Config{}, fmt.Errorf("failed to read %s: missing required sandbox.paths", path)
+	}
 
-	sandbox, mounts, err := decodeSandbox(meta, path, raw.Sandbox)
+	sandbox, mounts, paths, err := decodeSandbox(meta, path, raw.Sandbox)
 	if err != nil {
 		return Config{}, err
 	}
@@ -87,6 +92,7 @@ func ReadConfig(path string) (Config, error) {
 		TestDir: raw.Mire.TestDir,
 		Sandbox: sandbox,
 		Mounts:  mounts,
+		Paths:   paths,
 	}, nil
 }
 
@@ -100,68 +106,71 @@ func WriteDefaultConfig(path string) error {
 	return os.WriteFile(path, body, 0o644)
 }
 
-func decodeSandbox(meta toml.MetaData, path string, raw toml.Primitive) (map[string]string, []string, error) {
+func decodeSandbox(meta toml.MetaData, path string, raw toml.Primitive) (map[string]string, []string, []string, error) {
 	var typed tomlSandboxConfig
 	if err := meta.PrimitiveDecode(raw, &typed); err != nil {
-		return nil, nil, fmt.Errorf("failed to read %s: %v", path, err)
+		return nil, nil, nil, fmt.Errorf("failed to read %s: %v", path, err)
 	}
 
 	var sandboxTable map[string]any
 	if err := meta.PrimitiveDecode(raw, &sandboxTable); err != nil {
-		return nil, nil, fmt.Errorf("failed to read %s: %v", path, err)
+		return nil, nil, nil, fmt.Errorf("failed to read %s: %v", path, err)
 	}
 
 	sandbox := map[string]string{
 		"home": typed.Home,
 	}
 	for key, value := range sandboxTable {
-		if key == "home" || key == "mounts" {
+		if key == "home" || key == "mounts" || key == "paths" {
 			continue
 		}
 
 		str, ok := value.(string)
 		if !ok {
-			return nil, nil, fmt.Errorf("failed to read %s: sandbox.%s must be a string", path, key)
+			return nil, nil, nil, fmt.Errorf("failed to read %s: sandbox.%s must be a string", path, key)
 		}
 		sandbox[key] = str
 	}
 
-	return validateSandbox(path, sandbox, typed.Mounts)
+	return validateSandbox(path, sandbox, typed.Mounts, typed.Paths)
 }
 
-func validateSandbox(path string, sandbox map[string]string, mounts []string) (map[string]string, []string, error) {
+func validateSandbox(path string, sandbox map[string]string, mounts, paths []string) (map[string]string, []string, []string, error) {
 	validated := cloneSandbox(sandbox)
 
 	for key := range validated {
 		if !lowerSnakeCasePattern.MatchString(key) {
-			return nil, nil, fmt.Errorf("failed to read %s: invalid sandbox key %q: must be lower_snake_case", path, key)
+			return nil, nil, nil, fmt.Errorf("failed to read %s: invalid sandbox key %q: must be lower_snake_case", path, key)
 		}
 	}
 
 	for key := range requiredSandboxDefaults {
 		value, ok := validated[key]
 		if !ok {
-			return nil, nil, fmt.Errorf("failed to read %s: missing required sandbox.%s", path, key)
+			return nil, nil, nil, fmt.Errorf("failed to read %s: missing required sandbox.%s", path, key)
 		}
 		if value == "" {
-			return nil, nil, fmt.Errorf("failed to read %s: empty sandbox.%s", path, key)
+			return nil, nil, nil, fmt.Errorf("failed to read %s: empty sandbox.%s", path, key)
 		}
 	}
 
 	if !filepath.IsAbs(validated["home"]) {
-		return nil, nil, fmt.Errorf("failed to read %s: sandbox.home must be an absolute path", path)
+		return nil, nil, nil, fmt.Errorf("failed to read %s: sandbox.home must be an absolute path", path)
 	}
 
 	validatedMounts, err := normalizeMounts(path, mounts)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	validatedPaths, err := normalizePaths(path, paths)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
-	return validated, validatedMounts, nil
+	return validated, validatedMounts, validatedPaths, nil
 }
 
 func normalizeMounts(configPath string, mounts []string) ([]string, error) {
-	baseDir := filepath.Dir(configPath)
 	normalized := make([]string, 0, len(mounts))
 	for _, mount := range mounts {
 		hostPath, sandboxPath, ok := strings.Cut(mount, ":")
@@ -169,16 +178,38 @@ func normalizeMounts(configPath string, mounts []string) ([]string, error) {
 			normalized = append(normalized, mount)
 			continue
 		}
-		if !filepath.IsAbs(hostPath) {
-			hostPath = filepath.Clean(filepath.Join(baseDir, hostPath))
-		}
-		if _, err := os.Stat(hostPath); err != nil {
+		hostPath, err := normalizePath(configPath, hostPath)
+		if err != nil {
 			return nil, fmt.Errorf("failed to read %s: sandbox mount host path %q does not exist", configPath, hostPath)
 		}
 		normalized = append(normalized, hostPath+":"+sandboxPath)
 	}
 
 	return normalized, nil
+}
+
+func normalizePaths(configPath string, paths []string) ([]string, error) {
+	normalized := make([]string, 0, len(paths))
+	for _, path := range paths {
+		hostPath, err := normalizePath(configPath, path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read %s: sandbox path host path %q does not exist", configPath, hostPath)
+		}
+		normalized = append(normalized, hostPath)
+	}
+
+	return normalized, nil
+}
+
+func normalizePath(configPath, path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Clean(filepath.Join(filepath.Dir(configPath), path))
+	}
+	if _, err := os.Stat(path); err != nil {
+		return path, err
+	}
+
+	return path, nil
 }
 
 func cloneSandbox(sandbox map[string]string) map[string]string {

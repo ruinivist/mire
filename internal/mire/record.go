@@ -46,7 +46,7 @@ func Record(path string) (string, error) {
 		in:  os.Stdin,
 		out: os.Stdout,
 		err: os.Stderr,
-	}, cfg.Sandbox, cfg.Mounts, setupScripts); err != nil {
+	}, cfg.Sandbox, cfg.Mounts, cfg.Paths, setupScripts); err != nil {
 		return "", err
 	}
 
