@@ -110,7 +110,7 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 	}, shellPath, testIO{
 		out: &stdout,
 		err: &stderr,
-	}, defaultSandboxConfig())
+	}, defaultSandboxConfig(), nil)
 	if err != nil {
 		t.Fatalf("replayScenario() error = %v", err)
 	}
@@ -146,7 +146,7 @@ func TestReplayScenarioWaitsForPromptReadyMarkerBeforeSendingInput(t *testing.T)
 	}, shellPath, testIO{
 		out: &bytes.Buffer{},
 		err: &bytes.Buffer{},
-	}, defaultSandboxConfig())
+	}, defaultSandboxConfig(), nil)
 	if err != nil {
 		t.Fatalf("replayScenario() error = %v", err)
 	}
@@ -171,7 +171,7 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 	}, shellPath, testIO{
 		out: &bytes.Buffer{},
 		err: &bytes.Buffer{},
-	}, defaultSandboxConfig())
+	}, defaultSandboxConfig(), nil)
 	if err == nil {
 		t.Fatal("replayScenario() error = nil, want error")
 	}
@@ -235,7 +235,7 @@ func TestRunTestsScopedRunEmptyDirectoryFails(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	emptyDir := filepath.Join(testDir, "empty")
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "e2e")
 	mustWriteRecordShell(t, testDir)
 	testutil.MustMkdirAll(t, emptyDir)
 

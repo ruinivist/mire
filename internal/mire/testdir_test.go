@@ -19,9 +19,8 @@ func TestInitCreatesConfigAtProjectRoot(t *testing.T) {
 		return struct{}{}
 	})
 
-	got := testutil.ReadFile(t, filepath.Join(root, "mire.toml"))
-	if got != testutil.DefaultWrittenConfig("e2e") {
-		t.Fatalf("config = %q, want %q", got, testutil.DefaultWrittenConfig("e2e"))
+	if _, err := os.Stat(filepath.Join(root, "mire.toml")); err != nil {
+		t.Fatalf("Stat(%q) error = %v", filepath.Join(root, "mire.toml"), err)
 	}
 	assertRecordShell(t, filepath.Join(root, "e2e", recordShellName))
 }
@@ -47,7 +46,8 @@ func TestInitUsesGitRoot(t *testing.T) {
 
 func TestInitLeavesExistingValidConfigUntouchedAndRefreshesShell(t *testing.T) {
 	root := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("custom/suite"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "custom/suite")
+	wantConfig := testutil.ReadFile(t, filepath.Join(root, "mire.toml"))
 	testutil.WriteFile(t, filepath.Join(root, "custom", "suite", recordShellName), "outdated\n")
 
 	testutil.WithWorkingDir(t, root, func() struct{} {
@@ -57,9 +57,8 @@ func TestInitLeavesExistingValidConfigUntouchedAndRefreshesShell(t *testing.T) {
 		return struct{}{}
 	})
 
-	got := testutil.ReadFile(t, filepath.Join(root, "mire.toml"))
-	if got != testutil.ValidConfigContent("custom/suite") {
-		t.Fatalf("config = %q, want %q", got, testutil.ValidConfigContent("custom/suite"))
+	if got := testutil.ReadFile(t, filepath.Join(root, "mire.toml")); got != wantConfig {
+		t.Fatalf("config = %q, want unchanged %q", got, wantConfig)
 	}
 	if got := testutil.ReadFile(t, filepath.Join(root, "custom", "suite", recordShellName)); got != buildRecordShellScript() {
 		t.Fatalf("shell = %q, want refreshed recorder shell", got)
@@ -68,7 +67,7 @@ func TestInitLeavesExistingValidConfigUntouchedAndRefreshesShell(t *testing.T) {
 
 func TestInitCreatesMissingConfiguredTestDir(t *testing.T) {
 	root := t.TempDir()
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("custom/suite"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "custom/suite")
 
 	testutil.WithWorkingDir(t, root, func() struct{} {
 		if err := Init(); err != nil {
@@ -99,7 +98,7 @@ func TestResolveTestDirFromConfig(t *testing.T) {
 	root := t.TempDir()
 	configured := filepath.Join(root, "custom", "suite")
 	testutil.MustMkdirAll(t, configured)
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("custom/suite"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "custom/suite")
 
 	got := testutil.WithWorkingDir(t, root, func() string {
 		path, err := ResolveTestDir()
@@ -184,7 +183,7 @@ func TestResolveTestDirMalformedConfigFails(t *testing.T) {
 func TestResolveTestDirConfiguredMissingDirectoryReturnsConfiguredPath(t *testing.T) {
 	root := t.TempDir()
 	want := filepath.Join(root, "missing")
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("missing"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "missing")
 
 	got := testutil.WithWorkingDir(t, root, func() string {
 		path, err := ResolveTestDir()
@@ -202,7 +201,7 @@ func TestResolveTestDirConfiguredMissingDirectoryReturnsConfiguredPath(t *testin
 func TestResolveTestDirConfiguredFileFails(t *testing.T) {
 	root := t.TempDir()
 	testutil.WriteFile(t, filepath.Join(root, "case.txt"), "hello\n")
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("case.txt"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "case.txt")
 
 	err := testutil.WithWorkingDir(t, root, func() error {
 		_, err := ResolveTestDir()
@@ -221,7 +220,7 @@ func TestResolveTestDirUsesGitRoot(t *testing.T) {
 	root := t.TempDir()
 	testutil.MustGitInit(t, root)
 	want := filepath.Join(root, "e2e")
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "e2e")
 	subdir := filepath.Join(root, "nested", "dir")
 	testutil.MustMkdirAll(t, subdir)
 

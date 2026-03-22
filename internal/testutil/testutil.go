@@ -171,6 +171,12 @@ func WriteFile(t *testing.T, path, content string) {
 	}
 }
 
+func WriteValidConfig(t *testing.T, path, testDir string) {
+	t.Helper()
+
+	WriteFile(t, path, validConfigContent(testDir))
+}
+
 func WriteScenarioFixtures(t *testing.T, dir, in, out string) {
 	t.Helper()
 
@@ -437,10 +443,6 @@ func MustGitInit(t *testing.T, dir string) {
 	}
 }
 
-func DefaultWrittenConfig(testDir string) string {
-	return "[mire]\n  test_dir = \"" + testDir + "\"\n\n[sandbox]\n  home = \"/home/test\"\n"
-}
-
-func ValidConfigContent(testDir string) string {
-	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nhome = \"/home/test\"\n"
+func validConfigContent(testDir string) string {
+	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\n"
 }

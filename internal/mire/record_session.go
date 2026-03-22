@@ -18,7 +18,7 @@ type recordIO struct {
 	err io.Writer
 }
 
-func recordScenario(target, shellPath string, rio recordIO, sandboxConfig map[string]string, setupScripts []string) error {
+func recordScenario(target, shellPath string, rio recordIO, sandboxConfig map[string]string, mounts, setupScripts []string) error {
 	rawIn, rawOut, cleanup, err := newRecordFiles()
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func recordScenario(target, shellPath string, rio recordIO, sandboxConfig map[st
 
 	// this error is intentionally discarded to avoid non zero exit status inside record
 	// as an error
-	runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio, sandboxConfig, setupScripts)
+	runRecordSession(target, rawIn, rawOut, shellPath, sandbox, rio, sandboxConfig, mounts, setupScripts)
 
 	save, err := confirmRecordSave(rio)
 	if err != nil {
@@ -120,7 +120,7 @@ func newRecordSandboxForPathEnv(pathEnv string) (recordSandbox, func(), error) {
 	return sandbox, cleanup, nil
 }
 
-func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbox, rio recordIO, sandboxConfig map[string]string, setupScripts []string) error {
+func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbox, rio recordIO, sandboxConfig map[string]string, mounts, setupScripts []string) error {
 	rawInFile, err := os.Create(rawIn)
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func runRecordSession(dir, rawIn, rawOut, shellPath string, sandbox recordSandbo
 
 	cmd := exec.Command(shellPath)
 	cmd.Dir = dir
-	cmd.Env = recordSessionEnv(sandbox, sandboxConfig, setupScripts)
+	cmd.Env = recordSessionEnv(sandbox, sandboxConfig, mounts, setupScripts)
 
 	var tty *os.File
 	if file, ok := rio.in.(*os.File); ok {

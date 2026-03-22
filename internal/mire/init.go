@@ -26,10 +26,7 @@ func Init() error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to check %s: %v", configPath, err)
 	} else {
-		if err := mireconfig.WriteConfig(configPath, mireconfig.Config{
-			TestDir: defaultTestDir,
-			Sandbox: mireconfig.DefaultSandboxConfig(),
-		}); err != nil {
+		if err := mireconfig.WriteDefaultConfig(configPath); err != nil {
 			return fmt.Errorf("failed to write %s: %v", configPath, err)
 		}
 	}

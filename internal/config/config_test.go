@@ -14,17 +14,19 @@ func TestReadConfig(t *testing.T) {
 		content     string
 		wantDir     string
 		wantSandbox map[string]string
+		wantMounts  []string
 		wantErr     string
 		wantMissing bool
 	}{
 		{
 			name:    "with test dir and sandbox",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nkey_word = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = [\"/host/data:/sandbox/data\", \"/host/cache:/sandbox/cache\"]\nkey_word = \"value\"\n",
 			wantDir: "custom/suite",
 			wantSandbox: map[string]string{
 				"home":     "/home/test",
 				"key_word": "value",
 			},
+			wantMounts: []string{"/host/data:/sandbox/data", "/host/cache:/sandbox/cache"},
 		},
 		{
 			name:    "legacy top level key",
@@ -53,23 +55,38 @@ func TestReadConfig(t *testing.T) {
 		},
 		{
 			name:    "without required home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nmounts = []\n",
 			wantErr: "missing required sandbox.home",
 		},
 		{
+			name:    "without required mounts",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\n",
+			wantErr: "missing required sandbox.mounts",
+		},
+		{
 			name:    "empty required home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"\"\nmounts = []\n",
 			wantErr: "empty sandbox.home",
 		},
 		{
 			name:    "relative home",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"home/test\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"home/test\"\nmounts = []\n",
 			wantErr: "sandbox.home must be an absolute path",
 		},
 		{
 			name:    "invalid sandbox key",
-			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nKeyWord = \"value\"\n",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\nKeyWord = \"value\"\n",
 			wantErr: "invalid sandbox key",
+		},
+		{
+			name:    "non string sandbox value",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\nkey_word = 1\n",
+			wantErr: "sandbox.key_word must be a string",
+		},
+		{
+			name:    "mounts wrong type",
+			content: "[mire]\ntest_dir = \"custom/suite\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = \"oops\"\n",
+			wantErr: "failed to read",
 		},
 		{
 			name:    "invalid toml",
@@ -121,57 +138,36 @@ func TestReadConfig(t *testing.T) {
 					t.Fatalf("ReadConfig() Sandbox[%q] = %q, want %q", key, got.Sandbox[key], want)
 				}
 			}
+			if len(got.Mounts) != len(tt.wantMounts) {
+				t.Fatalf("ReadConfig() Mounts = %#v, want %#v", got.Mounts, tt.wantMounts)
+			}
+			for i, want := range tt.wantMounts {
+				if got.Mounts[i] != want {
+					t.Fatalf("ReadConfig() Mounts[%d] = %q, want %q", i, got.Mounts[i], want)
+				}
+			}
 		})
 	}
 }
 
-func TestWriteConfig(t *testing.T) {
+func TestWriteDefaultConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mire.toml")
 
-	if err := WriteConfig(path, Config{
-		TestDir: "e2e",
-		Sandbox: map[string]string{
-			"home":      "/home/test",
-			"alpha_key": "a",
-			"zulu_key":  "z",
-		},
-	}); err != nil {
-		t.Fatalf("WriteConfig() error = %v", err)
+	if err := WriteDefaultConfig(path); err != nil {
+		t.Fatalf("WriteDefaultConfig() error = %v", err)
 	}
 
-	got, err := os.ReadFile(path)
+	got, err := ReadConfig(path)
 	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
+		t.Fatalf("ReadConfig() error = %v", err)
 	}
-	want := "[mire]\n  test_dir = \"e2e\"\n\n[sandbox]\n  alpha_key = \"a\"\n  home = \"/home/test\"\n  zulu_key = \"z\"\n"
-	if string(got) != want {
-		t.Fatalf("config = %q, want %q", string(got), want)
+	if got.TestDir != "e2e" {
+		t.Fatalf("ReadConfig() TestDir = %q, want %q", got.TestDir, "e2e")
 	}
-}
-
-func TestWriteConfigEmptyTestDirFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mire.toml")
-
-	err := WriteConfig(path, Config{})
-	if err == nil {
-		t.Fatal("WriteConfig() error = nil, want error")
+	if got.Sandbox["home"] != DefaultVisibleHome {
+		t.Fatalf("ReadConfig() Sandbox[home] = %q, want %q", got.Sandbox["home"], DefaultVisibleHome)
 	}
-	if err.Error() != "empty mire.test_dir" {
-		t.Fatalf("WriteConfig() error = %q, want %q", err.Error(), "empty mire.test_dir")
-	}
-}
-
-func TestWriteConfigMissingRequiredSandboxFails(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mire.toml")
-
-	err := WriteConfig(path, Config{
-		TestDir: "e2e",
-		Sandbox: map[string]string{},
-	})
-	if err == nil {
-		t.Fatal("WriteConfig() error = nil, want error")
-	}
-	if !strings.Contains(err.Error(), "missing required sandbox.home") {
-		t.Fatalf("WriteConfig() error = %q, want home error", err.Error())
+	if len(got.Mounts) != 0 {
+		t.Fatalf("ReadConfig() Mounts = %#v, want empty", got.Mounts)
 	}
 }

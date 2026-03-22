@@ -1,13 +1,12 @@
 package config
 
 import (
-	"bytes"
+	"embed"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 
 	"github.com/BurntSushi/toml"
 )
@@ -24,16 +23,25 @@ var (
 type Config struct {
 	TestDir string
 	Sandbox map[string]string
+	Mounts  []string
 }
 
 type tomlConfig struct {
-	Mire    tomlMireConfig    `toml:"mire"`
-	Sandbox map[string]string `toml:"sandbox"`
+	Mire    tomlMireConfig `toml:"mire"`
+	Sandbox toml.Primitive `toml:"sandbox"`
 }
 
 type tomlMireConfig struct {
 	TestDir string `toml:"test_dir"`
 }
+
+type tomlSandboxConfig struct {
+	Home   string   `toml:"home"`
+	Mounts []string `toml:"mounts"`
+}
+
+//go:embed mire.toml
+var defaultConfigFS embed.FS
 
 func DefaultSandboxConfig() map[string]string {
 	return cloneSandbox(requiredSandboxDefaults)
@@ -62,8 +70,14 @@ func ReadConfig(path string) (Config, error) {
 	if !meta.IsDefined("sandbox") {
 		return Config{}, fmt.Errorf("failed to read %s: missing [sandbox] config", path)
 	}
+	if !meta.IsDefined("sandbox", "home") {
+		return Config{}, fmt.Errorf("failed to read %s: missing required sandbox.home", path)
+	}
+	if !meta.IsDefined("sandbox", "mounts") {
+		return Config{}, fmt.Errorf("failed to read %s: missing required sandbox.mounts", path)
+	}
 
-	sandbox, err := validateSandbox(path, raw.Sandbox)
+	sandbox, mounts, err := decodeSandbox(meta, path, raw.Sandbox)
 	if err != nil {
 		return Config{}, err
 	}
@@ -71,58 +85,73 @@ func ReadConfig(path string) (Config, error) {
 	return Config{
 		TestDir: raw.Mire.TestDir,
 		Sandbox: sandbox,
+		Mounts:  mounts,
 	}, nil
 }
 
-// WriteConfig writes mire.toml.
-func WriteConfig(path string, cfg Config) error {
-	if cfg.TestDir == "" {
-		return errors.New("empty mire.test_dir")
-	}
-	sandbox, err := validateSandbox(path, cfg.Sandbox)
+// WriteDefaultConfig writes the embedded default mire.toml.
+func WriteDefaultConfig(path string) error {
+	body, err := defaultConfigFS.ReadFile("mire.toml")
 	if err != nil {
-		return err
+		return fmt.Errorf("read embedded default mire.toml: %v", err)
 	}
 
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "[mire]\n  test_dir = %q\n\n[sandbox]\n", cfg.TestDir)
-
-	keys := make([]string, 0, len(sandbox))
-	for key := range sandbox {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		fmt.Fprintf(&buf, "  %s = %q\n", key, sandbox[key])
-	}
-
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+	return os.WriteFile(path, body, 0o644)
 }
 
-func validateSandbox(path string, sandbox map[string]string) (map[string]string, error) {
+func decodeSandbox(meta toml.MetaData, path string, raw toml.Primitive) (map[string]string, []string, error) {
+	var typed tomlSandboxConfig
+	if err := meta.PrimitiveDecode(raw, &typed); err != nil {
+		return nil, nil, fmt.Errorf("failed to read %s: %v", path, err)
+	}
+
+	var sandboxTable map[string]any
+	if err := meta.PrimitiveDecode(raw, &sandboxTable); err != nil {
+		return nil, nil, fmt.Errorf("failed to read %s: %v", path, err)
+	}
+
+	sandbox := map[string]string{
+		"home": typed.Home,
+	}
+	for key, value := range sandboxTable {
+		if key == "home" || key == "mounts" {
+			continue
+		}
+
+		str, ok := value.(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("failed to read %s: sandbox.%s must be a string", path, key)
+		}
+		sandbox[key] = str
+	}
+
+	return validateSandbox(path, sandbox, typed.Mounts)
+}
+
+func validateSandbox(path string, sandbox map[string]string, mounts []string) (map[string]string, []string, error) {
 	validated := cloneSandbox(sandbox)
 
 	for key := range validated {
 		if !lowerSnakeCasePattern.MatchString(key) {
-			return nil, fmt.Errorf("failed to read %s: invalid sandbox key %q: must be lower_snake_case", path, key)
+			return nil, nil, fmt.Errorf("failed to read %s: invalid sandbox key %q: must be lower_snake_case", path, key)
 		}
 	}
 
 	for key := range requiredSandboxDefaults {
 		value, ok := validated[key]
 		if !ok {
-			return nil, fmt.Errorf("failed to read %s: missing required sandbox.%s", path, key)
+			return nil, nil, fmt.Errorf("failed to read %s: missing required sandbox.%s", path, key)
 		}
 		if value == "" {
-			return nil, fmt.Errorf("failed to read %s: empty sandbox.%s", path, key)
+			return nil, nil, fmt.Errorf("failed to read %s: empty sandbox.%s", path, key)
 		}
 	}
 
 	if !filepath.IsAbs(validated["home"]) {
-		return nil, fmt.Errorf("failed to read %s: sandbox.home must be an absolute path", path)
+		return nil, nil, fmt.Errorf("failed to read %s: sandbox.home must be an absolute path", path)
 	}
 
-	return validated, nil
+	return validated, cloneMounts(mounts), nil
 }
 
 func cloneSandbox(sandbox map[string]string) map[string]string {
@@ -134,6 +163,17 @@ func cloneSandbox(sandbox map[string]string) map[string]string {
 	for key, value := range sandbox {
 		cloned[key] = value
 	}
+
+	return cloned
+}
+
+func cloneMounts(mounts []string) []string {
+	if len(mounts) == 0 {
+		return []string{}
+	}
+
+	cloned := make([]string, len(mounts))
+	copy(cloned, mounts)
 
 	return cloned
 }

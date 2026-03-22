@@ -67,4 +67,15 @@ ${MIRE_SETUP_SCRIPTS-}
 EOF
 fi
 
+if [ -n "${MIRE_MOUNTS:-}" ]; then
+  while IFS= read -r mount || [ -n "$mount" ]; do
+    [ -n "$mount" ] || continue
+    host_path=${mount%%:*}
+    sandbox_path=${mount#*:}
+    set -- "$@" --ro-bind "$host_path" "$sandbox_path"
+  done <<EOF
+${MIRE_MOUNTS-}
+EOF
+fi
+
 exec bwrap "$@" bash --noprofile --rcfile "$visible_bootstrap_rc" -i

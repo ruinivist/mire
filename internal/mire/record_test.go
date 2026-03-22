@@ -14,7 +14,7 @@ func TestRecordCreatesRelativePath(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
 	testutil.MustMkdirAll(t, testDir)
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "e2e")
 	mustWriteRecordShell(t, testDir)
 	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
 
@@ -60,7 +60,7 @@ func TestRecordReturnsDiscardedErrorWhenSaveDeclined(t *testing.T) {
 		target := filepath.Join(testDir, "a", "b", "c")
 		testutil.MustMkdirAll(t, target)
 		return withRecordStreams(t, "exit\nn\n", func(rio recordIO) error {
-			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil)
+			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil, nil)
 		})
 	})
 
@@ -87,7 +87,7 @@ func TestRecordReturnsDiscardedErrorWhenOverwriteDeclined(t *testing.T) {
 
 	err := testutil.WithWorkingDir(t, root, func() error {
 		return withRecordStreams(t, "n\n", func(rio recordIO) error {
-			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil)
+			return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil, nil)
 		})
 	})
 
@@ -125,6 +125,12 @@ func TestBuildRecordShellScriptUsesExpectedCommands(t *testing.T) {
 		"visible_bootstrap_rc=\"$visible_home/.mire-shell-rc\"",
 		"for path in /tmp/mire-setup-scripts/*.sh; do",
 		"source \"$path\"",
+		`if [ -n "${MIRE_MOUNTS:-}" ]; then`,
+		`while IFS= read -r mount || [ -n "$mount" ]; do`,
+		`host_path=${mount%%:*}`,
+		`sandbox_path=${mount#*:}`,
+		`set -- "$@" --ro-bind "$host_path" "$sandbox_path"`,
+		"${MIRE_MOUNTS-}",
 		`if [ -n "${MIRE_SETUP_SCRIPTS:-}" ]; then`,
 		"i=1",
 		`while IFS= read -r host_path || [ -n "$host_path" ]; do`,
@@ -161,12 +167,13 @@ func TestRecordSessionEnvIncludesConfiguredSandboxEnv(t *testing.T) {
 	}, map[string]string{
 		"home":     "/sandbox/home",
 		"key_word": "value",
-	}, []string{"/repo/e2e/setup.sh", "/repo/e2e/suite/setup.sh"})
+	}, []string{"/host/data:/sandbox/data", "/host/cache:/sandbox/cache"}, []string{"/repo/e2e/setup.sh", "/repo/e2e/suite/setup.sh"})
 
 	for _, want := range []string{
 		"MIRE_HOST_HOME=/tmp/host-home",
 		"MIRE_HOST_TMP=/tmp/host-tmp",
 		"MIRE_PATH_ENV=/tmp/bin",
+		"MIRE_MOUNTS=/host/data:/sandbox/data\n/host/cache:/sandbox/cache",
 		"MIRE_KEY_WORD=value",
 		"MIRE_HOME=/sandbox/home",
 		"MIRE_SETUP_SCRIPTS=/repo/e2e/setup.sh\n/repo/e2e/suite/setup.sh",
@@ -187,7 +194,7 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 		pathEnv:  "/tmp/bin",
 	}, map[string]string{
 		"home": "/sandbox/home",
-	}, []string{"/repo/e2e/setup.sh"}, map[string]string{
+	}, []string{"/host/data:/sandbox/data"}, []string{"/repo/e2e/setup.sh"}, map[string]string{
 		compareMarkerEnvName: compareMarkerEnabledValue,
 	})
 
@@ -195,6 +202,7 @@ func TestRecordSessionEnvWithExtraIncludesAdditionalEntries(t *testing.T) {
 		"MIRE_HOST_HOME=/tmp/host-home",
 		"MIRE_HOST_TMP=/tmp/host-tmp",
 		"MIRE_PATH_ENV=/tmp/bin",
+		"MIRE_MOUNTS=/host/data:/sandbox/data",
 		"MIRE_HOME=/sandbox/home",
 		"MIRE_SETUP_SCRIPTS=/repo/e2e/setup.sh",
 		"MIRE_COMPARE_MARKER=1",
@@ -224,7 +232,7 @@ func TestRunRecordSessionCapturesInputAndOutput(t *testing.T) {
 	rawIn := filepath.Join(t.TempDir(), "raw.in")
 	rawOut := filepath.Join(t.TempDir(), "raw.out")
 	err = withRecordStreams(t, "hello\n", func(rio recordIO) error {
-		return runRecordSession(t.TempDir(), rawIn, rawOut, shellPath, sandbox, rio, defaultSandboxConfig(), nil)
+		return runRecordSession(t.TempDir(), rawIn, rawOut, shellPath, sandbox, rio, defaultSandboxConfig(), nil, nil)
 	})
 	if err != nil {
 		t.Fatalf("runRecordSession() error = %v", err)
@@ -263,7 +271,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 			"y\n",
 			func(rio recordIO) error {
 				rio.out = ioDiscard{}
-				return recordScenario(target, recordShellPath(testDir), rio, sandboxConfig, nil)
+				return recordScenario(target, recordShellPath(testDir), rio, sandboxConfig, nil, nil)
 			},
 		)
 	})
@@ -301,7 +309,7 @@ func TestRecordScenarioUsesDeterministicSandbox(t *testing.T) {
 func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")
-	testutil.WriteFile(t, filepath.Join(root, "mire.toml"), testutil.ValidConfigContent("e2e"))
+	testutil.WriteValidConfig(t, filepath.Join(root, "mire.toml"), "e2e")
 	testutil.MustMkdirAll(t, testDir)
 
 	target := filepath.Join(testDir, "suite", "spec")
