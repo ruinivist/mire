@@ -52,12 +52,12 @@ func TestReplayCapturesOutput(t *testing.T) {
 	cmd := exec.Command("sh", "-c", `read line; printf '__MIRE_E2E_BEGIN__\nline:%s\n' "$line"`)
 
 	var outputLog bytes.Buffer
-	if err := Replay(ReplayRequest{
+	if result := Replay(ReplayRequest{
 		Cmd:       cmd,
 		Input:     []byte("hello\n"),
 		OutputLog: &outputLog,
-	}); err != nil {
-		t.Fatalf("Replay() error = %v", err)
+	}); result.Err() != nil {
+		t.Fatalf("Replay() error = %v", result.Err())
 	}
 
 	got := outputLog.String()
@@ -77,13 +77,13 @@ func TestReplayWaitsForInputReadySignal(t *testing.T) {
 		close(ready)
 	}()
 
-	if err := Replay(ReplayRequest{
+	if result := Replay(ReplayRequest{
 		Cmd:        cmd,
 		Input:      []byte("hello\n"),
 		InputReady: ready,
 		OutputLog:  &outputLog,
-	}); err != nil {
-		t.Fatalf("Replay() error = %v", err)
+	}); result.Err() != nil {
+		t.Fatalf("Replay() error = %v", result.Err())
 	}
 
 	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {

@@ -265,20 +265,26 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 	promptTimeout := time.AfterFunc(replayPromptReadyTimeout, promptWriter.release)
 	defer promptTimeout.Stop()
 
-	if err := script.Replay(script.ReplayRequest{
+	replayResult := script.Replay(script.ReplayRequest{
 		Cmd:        cmd,
 		Input:      input,
 		InputReady: ready,
 		OutputLog:  promptWriter,
-	}); err != nil {
-		rawOutFile.Close()
-		return fmt.Errorf("replay failed: %v", err)
-	}
+	})
 	if err := rawOutFile.Close(); err != nil {
 		return fmt.Errorf("failed to close replay output: %v", err)
 	}
 	if !promptWriter.seen {
+		if err := replayResult.Err(); err != nil {
+			return fmt.Errorf("replay failed: %v", err)
+		}
 		return fmt.Errorf("replay shell never emitted %q; rerun `mire init` or refresh %q", compareOutputMarker, shellPath)
+	}
+	if replayResult.OutputErr != nil {
+		return fmt.Errorf("replay failed: %v", replayResult.OutputErr)
+	}
+	if replayResult.InputErr != nil {
+		return fmt.Errorf("replay failed: %v", replayResult.InputErr)
 	}
 
 	got, err := loadRecordedOutput(rawOut)

@@ -49,6 +49,16 @@ type ReplayRequest struct {
 	OutputLog  io.Writer
 }
 
+type ReplayResult struct {
+	ProcessErr error
+	OutputErr  error
+	InputErr   error
+}
+
+func (r ReplayResult) Err() error {
+	return firstErr(r.ProcessErr, r.OutputErr, r.InputErr)
+}
+
 // Record runs a live PTY session so we can mirror interactive output while capturing stable input and output logs.
 func Record(req RecordRequest) error {
 	if req.Cmd == nil {
@@ -98,14 +108,14 @@ func Record(req RecordRequest) error {
 }
 
 // Replay feeds recorded keystrokes back into a fresh PTY session to verify behavior against captured output.
-func Replay(req ReplayRequest) error {
+func Replay(req ReplayRequest) ReplayResult {
 	if req.Cmd == nil {
-		return errors.New("replay session command is required")
+		return ReplayResult{ProcessErr: errors.New("replay session command is required")}
 	}
 
 	ptmx, err := pty.StartWithSize(req.Cmd, sessionSize(nil))
 	if err != nil {
-		return err
+		return ReplayResult{ProcessErr: err}
 	}
 	defer ptmx.Close()
 
@@ -120,7 +130,11 @@ func Replay(req ReplayRequest) error {
 	outputErr := <-outputDone
 	inputErr := <-inputDone
 
-	return firstErr(waitErr, outputErr, inputErr)
+	return ReplayResult{
+		ProcessErr: waitErr,
+		OutputErr:  outputErr,
+		InputErr:   inputErr,
+	}
 }
 
 // combineWriters skips nil destinations so callers can fan out conditionally without repeated nil checks.
