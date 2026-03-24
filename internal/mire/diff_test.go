@@ -40,6 +40,75 @@ func TestFirstMismatchingLineMarksMissingLine(t *testing.T) {
 	}
 }
 
+func TestCompareOutputMatchesEqualOutput(t *testing.T) {
+	matched, details := compareOutput([]byte("alpha\n"), []byte("alpha\n"), nil)
+	if !matched {
+		t.Fatalf("compareOutput() matched = false, want true with details %#v", details)
+	}
+}
+
+func TestCompareOutputSkipsIgnoredMismatches(t *testing.T) {
+	matched, details := compareOutput(
+		[]byte("ts=111\nid=foo\nstable\n"),
+		[]byte("ts=222\nid=bar\nstable\n"),
+		[]string{`^ts=\d+$`, `^id=\w+$`},
+	)
+	if !matched {
+		t.Fatalf("compareOutput() matched = false, want true with details %#v", details)
+	}
+}
+
+func TestCompareOutputReturnsFirstNonIgnoredMismatch(t *testing.T) {
+	matched, details := compareOutput(
+		[]byte("ts=111\nstable\nfinal=a\n"),
+		[]byte("ts=222\nstable\nfinal=b\n"),
+		[]string{`^ts=\d+$`},
+	)
+	if matched {
+		t.Fatal("compareOutput() matched = true, want false")
+	}
+	if details.lineNumber != 3 {
+		t.Fatalf("lineNumber = %d, want 3", details.lineNumber)
+	}
+	if details.expected != (mismatchLine{text: "final=a", present: true}) {
+		t.Fatalf("expected line = %#v, want first non-ignored mismatch", details.expected)
+	}
+	if details.actual != (mismatchLine{text: "final=b", present: true}) {
+		t.Fatalf("actual line = %#v, want first non-ignored mismatch", details.actual)
+	}
+}
+
+func TestCompareOutputDoesNotIgnoreOneSidedMatch(t *testing.T) {
+	matched, details := compareOutput(
+		[]byte("ts=111\n"),
+		[]byte("value=222\n"),
+		[]string{`^ts=\d+$`},
+	)
+	if matched {
+		t.Fatal("compareOutput() matched = true, want false")
+	}
+	if details.lineNumber != 1 {
+		t.Fatalf("lineNumber = %d, want 1", details.lineNumber)
+	}
+}
+
+func TestCompareOutputDoesNotIgnoreMissingLine(t *testing.T) {
+	matched, details := compareOutput(
+		[]byte("ts=111\n"),
+		[]byte(""),
+		[]string{`^ts=\d+$`},
+	)
+	if matched {
+		t.Fatal("compareOutput() matched = true, want false")
+	}
+	if details.lineNumber != 1 {
+		t.Fatalf("lineNumber = %d, want 1", details.lineNumber)
+	}
+	if details.actual.present {
+		t.Fatalf("actual line = %#v, want missing line", details.actual)
+	}
+}
+
 func TestWriteScenarioMismatchPrintsOnlyFirstMismatch(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 
@@ -47,6 +116,11 @@ func TestWriteScenarioMismatchPrintsOnlyFirstMismatch(t *testing.T) {
 	writeScenarioMismatch(&buf, &testMismatchError{
 		expected: []byte("$ echo x\nx\n$ \nexit\n"),
 		actual:   []byte("$ echo a\na\n$ \nexit\n"),
+		details: mismatchDetails{
+			lineNumber: 1,
+			expected:   mismatchLine{text: "$ echo x", present: true},
+			actual:     mismatchLine{text: "$ echo a", present: true},
+		},
 	})
 
 	got := buf.String()
@@ -78,6 +152,11 @@ func TestWriteScenarioMismatchFormatsMissingLine(t *testing.T) {
 	writeScenarioMismatch(&buf, &testMismatchError{
 		expected: []byte("alpha\nbeta\n"),
 		actual:   []byte("alpha\n"),
+		details: mismatchDetails{
+			lineNumber: 2,
+			expected:   mismatchLine{text: "beta", present: true},
+			actual:     mismatchLine{},
+		},
 	})
 
 	got := buf.String()
@@ -96,6 +175,11 @@ func TestWriteScenarioMismatchItalicizesLabels(t *testing.T) {
 	writeScenarioMismatch(&buf, &testMismatchError{
 		expected: []byte("alpha\n"),
 		actual:   []byte("beta\n"),
+		details: mismatchDetails{
+			lineNumber: 1,
+			expected:   mismatchLine{text: "alpha", present: true},
+			actual:     mismatchLine{text: "beta", present: true},
+		},
 	})
 
 	got := buf.String()
@@ -105,7 +189,7 @@ func TestWriteScenarioMismatchItalicizesLabels(t *testing.T) {
 }
 
 func TestTestMismatchErrorIncludesLineNumber(t *testing.T) {
-	err := &testMismatchError{lineNumber: 7}
+	err := &testMismatchError{details: mismatchDetails{lineNumber: 7}}
 	if got := err.Error(); got != "output differed at line 7" {
 		t.Fatalf("Error() = %q, want %q", got, "output differed at line 7")
 	}

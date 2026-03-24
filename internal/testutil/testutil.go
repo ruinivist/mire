@@ -444,5 +444,5 @@ func MustGitInit(t *testing.T, dir string) {
 }
 
 func validConfigContent(testDir string) string {
-	return "[mire]\ntest_dir = \"" + testDir + "\"\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\npaths = []\n"
+	return "[mire]\ntest_dir = \"" + testDir + "\"\nignore_diffs = []\n\n[sandbox]\nhome = \"/home/test\"\nmounts = []\npaths = []\n"
 }

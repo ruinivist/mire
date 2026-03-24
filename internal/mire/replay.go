@@ -15,6 +15,7 @@ import (
 type replaySuite struct {
 	shellPath     string
 	scenarios     []testScenario
+	ignoreDiffs   []string
 	sandboxConfig map[string]string
 	mounts        []string
 	paths         []string
@@ -57,6 +58,7 @@ func loadReplaySuite(path string) (replaySuite, error) {
 	return replaySuite{
 		shellPath:     shellPath,
 		scenarios:     scenarios,
+		ignoreDiffs:   cfg.IgnoreDiffs,
 		sandboxConfig: cfg.Sandbox,
 		mounts:        cfg.Mounts,
 		paths:         cfg.Paths,

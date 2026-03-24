@@ -1,7 +1,6 @@
 package mire
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -39,9 +38,9 @@ type testFixtureFiles struct {
 }
 
 type testMismatchError struct {
-	expected   []byte
-	actual     []byte
-	lineNumber int
+	expected []byte
+	actual   []byte
+	details  mismatchDetails
 }
 
 const (
@@ -50,8 +49,8 @@ const (
 )
 
 func (e *testMismatchError) Error() string {
-	if e.lineNumber > 0 {
-		return fmt.Sprintf("output differed at line %d", e.lineNumber)
+	if e.details.lineNumber > 0 {
+		return fmt.Sprintf("output differed at line %d", e.details.lineNumber)
 	}
 
 	return "output differed"
@@ -76,7 +75,7 @@ func runTests(path string, tio testIO) error {
 		output.Fprintf(tio.out, "%s %s\n", output.Label("RUN", output.Info), scenario.relPath)
 
 		start := time.Now()
-		if err := replayScenario(scenario, suite.shellPath, suite.sandboxConfig, suite.mounts, suite.paths); err != nil {
+		if err := replayScenario(scenario, suite.shellPath, suite.ignoreDiffs, suite.sandboxConfig, suite.mounts, suite.paths); err != nil {
 			elapsed := time.Since(start)
 			summary.failed++
 			output.Fprintf(tio.out, "%s %s (%s): %v\n", output.Label("FAIL", output.Fail), scenario.relPath, formatElapsed(elapsed), err)
@@ -209,7 +208,7 @@ func discoverTestScenarios(discoveryRoot, displayRoot string) ([]testScenario, e
 	return scenarios, nil
 }
 
-func replayScenario(scenario testScenario, shellPath string, sandboxConfig map[string]string, mounts, paths []string) error {
+func replayScenario(scenario testScenario, shellPath string, ignoreDiffs []string, sandboxConfig map[string]string, mounts, paths []string) error {
 	got, err := replayScenarioOutput(scenario, shellPath, sandboxConfig, mounts, paths)
 	if err != nil {
 		return err
@@ -220,12 +219,12 @@ func replayScenario(scenario testScenario, shellPath string, sandboxConfig map[s
 		return fmt.Errorf("failed to read expected output: %v", err)
 	}
 
-	if !bytes.Equal(got, want) {
-		details := firstMismatchingLine(want, got)
+	matched, details := compareOutput(want, got, ignoreDiffs)
+	if !matched {
 		return &testMismatchError{
-			expected:   want,
-			actual:     got,
-			lineNumber: details.lineNumber,
+			expected: want,
+			actual:   got,
+			details:  details,
 		}
 	}
 

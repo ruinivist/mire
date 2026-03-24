@@ -1,6 +1,8 @@
 [mire]
   # which folder to strore tests in
   test_dir = "e2e"
+  # regexes for differing lines to ignore during replay comparison
+  ignore_diffs = []
 
 [sandbox]
   # home is where mire would drop you by default on record

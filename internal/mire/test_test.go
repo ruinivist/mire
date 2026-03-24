@@ -105,7 +105,28 @@ func TestReplayScenarioUsesRecordedInputAndKeepsReplayOutputQuiet(t *testing.T) 
 		inPath:       filepath.Join(scenarioDir, "in"),
 		outPath:      filepath.Join(scenarioDir, "out"),
 		setupScripts: nil,
-	}, shellPath, defaultSandboxConfig(), nil, nil)
+	}, shellPath, nil, defaultSandboxConfig(), nil, nil)
+	if err != nil {
+		t.Fatalf("replayScenario() error = %v", err)
+	}
+}
+
+func TestReplayScenarioIgnoresConfiguredDiffLines(t *testing.T) {
+	testutil.AddFakeRecordDependencies(t, "bwrap", "bash")
+
+	testDir := filepath.Join(t.TempDir(), "e2e")
+	shellPath := filepath.Join(testDir, "shell.sh")
+	mustWriteRecordShell(t, testDir)
+	scenarioDir := filepath.Join(testDir, "suite", "spec")
+	testutil.WriteScenarioFixtures(t, scenarioDir, "ts=222\nexit\n", "ts=111\r\nexit\r\n")
+
+	err := replayScenario(testScenario{
+		dir:          scenarioDir,
+		relPath:      filepath.Join("suite", "spec"),
+		inPath:       filepath.Join(scenarioDir, "in"),
+		outPath:      filepath.Join(scenarioDir, "out"),
+		setupScripts: nil,
+	}, shellPath, []string{`^ts=\d+$`}, defaultSandboxConfig(), nil, nil)
 	if err != nil {
 		t.Fatalf("replayScenario() error = %v", err)
 	}
@@ -131,7 +152,7 @@ func TestReplayScenarioWaitsForPromptReadyMarkerBeforeSendingInput(t *testing.T)
 		inPath:       filepath.Join(scenarioDir, "in"),
 		outPath:      filepath.Join(scenarioDir, "out"),
 		setupScripts: nil,
-	}, shellPath, defaultSandboxConfig(), nil, nil)
+	}, shellPath, nil, defaultSandboxConfig(), nil, nil)
 	if err != nil {
 		t.Fatalf("replayScenario() error = %v", err)
 	}
@@ -153,7 +174,7 @@ func TestReplayScenarioFailsWhenCompareMarkerMissing(t *testing.T) {
 		inPath:       filepath.Join(scenarioDir, "in"),
 		outPath:      filepath.Join(scenarioDir, "out"),
 		setupScripts: nil,
-	}, shellPath, defaultSandboxConfig(), nil, nil)
+	}, shellPath, nil, defaultSandboxConfig(), nil, nil)
 	if err == nil {
 		t.Fatal("replayScenario() error = nil, want error")
 	}

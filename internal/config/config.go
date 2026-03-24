@@ -22,10 +22,11 @@ var (
 )
 
 type Config struct {
-	TestDir string
-	Sandbox map[string]string
-	Mounts  []string
-	Paths   []string
+	TestDir     string
+	IgnoreDiffs []string
+	Sandbox     map[string]string
+	Mounts      []string
+	Paths       []string
 }
 
 type tomlConfig struct {
@@ -34,7 +35,8 @@ type tomlConfig struct {
 }
 
 type tomlMireConfig struct {
-	TestDir string `toml:"test_dir"`
+	TestDir     string   `toml:"test_dir"`
+	IgnoreDiffs []string `toml:"ignore_diffs"`
 }
 
 type tomlSandboxConfig struct {
@@ -70,6 +72,13 @@ func ReadConfig(path string) (Config, error) {
 	if raw.Mire.TestDir == "" {
 		return Config{}, fmt.Errorf("failed to read %s: empty mire.test_dir", path)
 	}
+	if !meta.IsDefined("mire", "ignore_diffs") {
+		return Config{}, fmt.Errorf("failed to read %s: missing required mire.ignore_diffs", path)
+	}
+	ignoreDiffs, err := validateIgnoreDiffs(path, raw.Mire.IgnoreDiffs)
+	if err != nil {
+		return Config{}, err
+	}
 	if !meta.IsDefined("sandbox") {
 		return Config{}, fmt.Errorf("failed to read %s: missing [sandbox] config", path)
 	}
@@ -89,10 +98,11 @@ func ReadConfig(path string) (Config, error) {
 	}
 
 	return Config{
-		TestDir: raw.Mire.TestDir,
-		Sandbox: sandbox,
-		Mounts:  mounts,
-		Paths:   paths,
+		TestDir:     raw.Mire.TestDir,
+		IgnoreDiffs: ignoreDiffs,
+		Sandbox:     sandbox,
+		Mounts:      mounts,
+		Paths:       paths,
 	}, nil
 }
 
@@ -170,6 +180,16 @@ func validateSandbox(path string, sandbox map[string]string, mounts, paths []str
 	return validated, validatedMounts, validatedPaths, nil
 }
 
+func validateIgnoreDiffs(path string, ignoreDiffs []string) ([]string, error) {
+	for i, pattern := range ignoreDiffs {
+		if _, err := regexp.Compile(pattern); err != nil {
+			return nil, fmt.Errorf("failed to read %s: invalid mire.ignore_diffs[%d] regex %q: %v", path, i, pattern, err)
+		}
+	}
+
+	return cloneStrings(ignoreDiffs), nil
+}
+
 func normalizeMounts(configPath string, mounts []string) ([]string, error) {
 	normalized := make([]string, 0, len(mounts))
 	for _, mount := range mounts {
@@ -225,13 +245,13 @@ func cloneSandbox(sandbox map[string]string) map[string]string {
 	return cloned
 }
 
-func cloneMounts(mounts []string) []string {
-	if len(mounts) == 0 {
+func cloneStrings(values []string) []string {
+	if len(values) == 0 {
 		return []string{}
 	}
 
-	cloned := make([]string, len(mounts))
-	copy(cloned, mounts)
+	cloned := make([]string, len(values))
+	copy(cloned, values)
 
 	return cloned
 }
