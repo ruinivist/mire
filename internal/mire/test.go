@@ -42,8 +42,9 @@ type testFixtureFiles struct {
 }
 
 type testMismatchError struct {
-	expected []byte
-	actual   []byte
+	expected   []byte
+	actual     []byte
+	lineNumber int
 }
 
 const (
@@ -52,6 +53,10 @@ const (
 )
 
 func (e *testMismatchError) Error() string {
+	if e.lineNumber > 0 {
+		return fmt.Sprintf("output differed at line %d", e.lineNumber)
+	}
+
 	return "output differed"
 }
 
@@ -302,24 +307,15 @@ func replayScenario(scenario testScenario, shellPath string, _ testIO, sandboxCo
 	}
 
 	if !bytes.Equal(got, want) {
+		details := firstMismatchingLine(want, got)
 		return &testMismatchError{
-			expected: want,
-			actual:   got,
+			expected:   want,
+			actual:     got,
+			lineNumber: details.lineNumber,
 		}
 	}
 
 	return nil
-}
-
-func writeScenarioMismatch(w io.Writer, mismatch *testMismatchError) {
-	output.Fprintf(w, "Expected:\n%s", string(mismatch.expected))
-	if len(mismatch.expected) == 0 || mismatch.expected[len(mismatch.expected)-1] != '\n' {
-		output.Fprintf(w, "\n")
-	}
-	output.Fprintf(w, "Actual:\n%s", string(mismatch.actual))
-	if len(mismatch.actual) == 0 || mismatch.actual[len(mismatch.actual)-1] != '\n' {
-		output.Fprintf(w, "\n")
-	}
 }
 
 func trimReplayOutputToMarker(data []byte, shellPath string) ([]byte, error) {
