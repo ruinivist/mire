@@ -7,7 +7,7 @@
 [?2004h$ exit
 [?2004lexit
 [1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m Verifying recording...
-[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m /home/test/e2e/a
+[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m Saved at e2e/a
 [?2004h$ echo stale > e2e/a/out
 [?2004l[?2004h$ mire rewrite
 [?2004l[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m [38;2;215;255;255mRUN[0m a

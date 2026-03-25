@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"mire/internal/mire"
@@ -28,7 +29,14 @@ func newRecordCommand() *cobra.Command {
 				return err
 			}
 
-			output.Println(createdPath)
+			displayPath := createdPath
+			if cwd, err := os.Getwd(); err == nil {
+				if relPath, err := filepath.Rel(cwd, createdPath); err == nil {
+					displayPath = relPath
+				}
+			}
+
+			output.Printf("Saved at %s\n", displayPath)
 			return nil
 		},
 	}

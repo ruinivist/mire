@@ -114,8 +114,8 @@ func TestRunRecord(t *testing.T) {
 		})
 
 		createdPath := filepath.Join(wantDir, "suite", "spec")
-		if !strings.Contains(stdout, createdPath) {
-			t.Fatalf("stdout = %q, want created path", stdout)
+		if !strings.Contains(stdout, prefixed("Saved at e2e/suite/spec\n")) {
+			t.Fatalf("stdout = %q, want saved message %q", stdout, prefixed("Saved at e2e/suite/spec\n"))
 		}
 		if !strings.Contains(stderr, "Save recording?") {
 			t.Fatalf("stderr = %q, want save prompt", stderr)
@@ -156,8 +156,8 @@ func TestRunRecordSaveFlagSkipsPrompt(t *testing.T) {
 		})
 
 		createdPath := filepath.Join(wantDir, "suite", "spec")
-		if !strings.Contains(stdout, createdPath) {
-			t.Fatalf("stdout = %q, want created path", stdout)
+		if !strings.Contains(stdout, prefixed("Saved at e2e/suite/spec\n")) {
+			t.Fatalf("stdout = %q, want saved message %q", stdout, prefixed("Saved at e2e/suite/spec\n"))
 		}
 		if strings.Contains(stderr, "Save recording?") {
 			t.Fatalf("stderr = %q, want save prompt omitted", stderr)

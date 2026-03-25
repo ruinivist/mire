@@ -9,10 +9,10 @@
 [?2004h$ exit
 [?2004lexit
 [1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m Verifying recording...
-[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m /home/test/e2e/suite/spec
+[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m Saved at e2e/suite/spec
 [?2004h$ mire test suite
 [?2004l[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m [38;2;215;255;255mRUN[0m suite/spec
-[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m [38;2;0;215;175mPASS[0m suite/spec (12 ms)
+[1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m [38;2;0;215;175mPASS[0m suite/spec (13 ms)
 [1m[3m[38;2;112;224;0mmire[0m [1m[3m[38;2;29;211;176m›[0m [38;2;0;215;175mSummary: total=1 passed=1 failed=0[0m
 [?2004h$ exit
 [?2004lexit
