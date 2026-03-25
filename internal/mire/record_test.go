@@ -505,6 +505,44 @@ func TestRecordScenarioStripsInterruptsFromSavedFixtures(t *testing.T) {
 	}
 }
 
+func TestRecordScenarioAllowsCommandNotFoundDuringVerification(t *testing.T) {
+	testutil.RequireCommands(t, "bwrap", "bash")
+
+	root := t.TempDir()
+	testDir := filepath.Join(root, "e2e")
+	target := filepath.Join(testDir, "suite", "spec")
+	testutil.MustMkdirAll(t, target)
+	mustWriteRecordShell(t, testDir)
+
+	err := testutil.WithWorkingDir(t, root, func() error {
+		return withPromptedRecordStreams(
+			t,
+			"a\nexit\n",
+			"y\n",
+			func(rio recordIO) error {
+				rio.out = ioDiscard{}
+				return recordScenario(target, recordShellPath(testDir), rio, defaultSandboxConfig(), nil, nil, nil, false)
+			},
+		)
+	})
+	if err != nil {
+		t.Fatalf("recordScenario() error = %v", err)
+	}
+
+	recordedIn := testutil.ReadFile(t, filepath.Join(target, "in"))
+	if recordedIn != "a\nexit\n" {
+		t.Fatalf("saved in = %q, want %q", recordedIn, "a\nexit\n")
+	}
+
+	recordedOut := testutil.ReadFile(t, filepath.Join(target, "out"))
+	if !strings.Contains(recordedOut, "bash: a: command not found") {
+		t.Fatalf("saved out = %q, want command-not-found output", recordedOut)
+	}
+	if !strings.Contains(recordedOut, "exit\r\n") {
+		t.Fatalf("saved out = %q, want exit preserved", recordedOut)
+	}
+}
+
 func TestRecordFailsWhenRecorderShellMissing(t *testing.T) {
 	root := t.TempDir()
 	testDir := filepath.Join(root, "e2e")

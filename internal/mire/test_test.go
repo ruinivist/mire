@@ -132,6 +132,32 @@ func TestReplayScenarioIgnoresConfiguredDiffLines(t *testing.T) {
 	}
 }
 
+func TestReplayScenarioAllowsNonZeroShellExitWhenOutputMatches(t *testing.T) {
+	testutil.RequireCommands(t, "bwrap", "bash")
+
+	testDir := filepath.Join(t.TempDir(), "e2e")
+	shellPath := filepath.Join(testDir, "shell.sh")
+	mustWriteRecordShell(t, testDir)
+	scenarioDir := filepath.Join(testDir, "suite", "spec")
+	testutil.WriteScenarioFixtures(
+		t,
+		scenarioDir,
+		"a\nexit\n",
+		"\x1b[?2004h$ a\r\n\x1b[?2004l\rbash: a: command not found\r\n\x1b[?2004h$ exit\r\n\x1b[?2004l\rexit\r\n",
+	)
+
+	err := replayScenario(testScenario{
+		dir:          scenarioDir,
+		relPath:      filepath.Join("suite", "spec"),
+		inPath:       filepath.Join(scenarioDir, "in"),
+		outPath:      filepath.Join(scenarioDir, "out"),
+		setupScripts: nil,
+	}, shellPath, nil, defaultSandboxConfig(), nil, nil)
+	if err != nil {
+		t.Fatalf("replayScenario() error = %v", err)
+	}
+}
+
 func TestReplayScenarioWaitsForPromptReadyMarkerBeforeSendingInput(t *testing.T) {
 	testutil.RequireCommands(t, "bwrap", "bash")
 

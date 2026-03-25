@@ -2,6 +2,7 @@ package mire
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -142,7 +143,7 @@ func replayScenarioOutputFromInput(scenario testScenario, shellPath string, sand
 		}
 		return nil, fmt.Errorf("replay shell never emitted %q; rerun `mire init` or refresh %q", compareOutputMarker, shellPath)
 	}
-	if replayResult.ProcessErr != nil {
+	if replayResult.ProcessErr != nil && !isNonFatalReplayProcessErr(replayResult.ProcessErr) {
 		return nil, fmt.Errorf("replay failed: %v", replayResult.ProcessErr)
 	}
 	if replayResult.OutputErr != nil {
@@ -162,6 +163,11 @@ func replayScenarioOutputFromInput(scenario testScenario, shellPath string, sand
 		return nil, err
 	}
 	return got, nil
+}
+
+func isNonFatalReplayProcessErr(err error) bool {
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr)
 }
 
 func trimReplayOutputToMarker(data []byte, shellPath string) ([]byte, error) {
