@@ -52,10 +52,6 @@ func Label(text string, color Color) string {
 	return label(text, color)
 }
 
-func noColor() bool {
-	return os.Getenv("NO_COLOR") != ""
-}
-
 func prefix() string {
 	chevron := NewStyle().FG(palette.chevronTeal).Bold().Italic().Apply("›")
 	return NewStyle().FG(palette.mireGreen).Bold().Italic().Apply("mire") + " " + chevron + " "

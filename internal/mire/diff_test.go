@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"mire/internal/testutil"
 )
 
 func TestFirstMismatchingLineReturnsFirstChangedLine(t *testing.T) {
@@ -110,8 +112,6 @@ func TestCompareOutputDoesNotIgnoreMissingLine(t *testing.T) {
 }
 
 func TestWriteScenarioMismatchPrintsOnlyFirstMismatch(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-
 	var buf bytes.Buffer
 	writeScenarioMismatch(&buf, &testMismatchError{
 		expected: []byte("$ echo x\nx\n$ \nexit\n"),
@@ -123,7 +123,7 @@ func TestWriteScenarioMismatchPrintsOnlyFirstMismatch(t *testing.T) {
 		},
 	})
 
-	got := buf.String()
+	got := testutil.StripANSI(buf.String())
 	for _, want := range []string{
 		"Expected\n",
 		"$ echo x\n",
@@ -146,8 +146,6 @@ func TestWriteScenarioMismatchPrintsOnlyFirstMismatch(t *testing.T) {
 }
 
 func TestWriteScenarioMismatchFormatsMissingLine(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-
 	var buf bytes.Buffer
 	writeScenarioMismatch(&buf, &testMismatchError{
 		expected: []byte("alpha\nbeta\n"),
@@ -159,7 +157,7 @@ func TestWriteScenarioMismatchFormatsMissingLine(t *testing.T) {
 		},
 	})
 
-	got := buf.String()
+	got := testutil.StripANSI(buf.String())
 	if !strings.Contains(got, "beta\n") {
 		t.Fatalf("writeScenarioMismatch() output = %q, want expected mismatching line", got)
 	}
@@ -169,8 +167,6 @@ func TestWriteScenarioMismatchFormatsMissingLine(t *testing.T) {
 }
 
 func TestWriteScenarioMismatchItalicizesLabels(t *testing.T) {
-	t.Setenv("NO_COLOR", "")
-
 	var buf bytes.Buffer
 	writeScenarioMismatch(&buf, &testMismatchError{
 		expected: []byte("alpha\n"),

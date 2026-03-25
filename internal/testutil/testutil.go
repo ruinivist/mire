@@ -6,14 +6,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
 )
 
+var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
+
 func CaptureOutput(t *testing.T, fn func()) (string, string) {
 	t.Helper()
-	t.Setenv("NO_COLOR", "1")
 
 	stdoutReader, stdoutWriter, err := os.Pipe()
 	if err != nil {
@@ -52,12 +54,11 @@ func CaptureOutput(t *testing.T, fn func()) (string, string) {
 		t.Fatalf("stderr copy error = %v", err)
 	}
 
-	return stdoutBuf.String(), stderrBuf.String()
+	return StripANSI(stdoutBuf.String()), StripANSI(stderrBuf.String())
 }
 
 func CapturePromptedOutput(t *testing.T, sessionInput, promptMarker, promptInput string, fn func()) (string, string) {
 	t.Helper()
-	t.Setenv("NO_COLOR", "1")
 
 	stdinReader, stdinWriter, err := os.Pipe()
 	if err != nil {
@@ -159,7 +160,11 @@ func CapturePromptedOutput(t *testing.T, sessionInput, promptMarker, promptInput
 		t.Fatalf("stderr copy error = %v", err)
 	}
 
-	return stdoutBuf.String(), stderrBuf.String()
+	return StripANSI(stdoutBuf.String()), StripANSI(stderrBuf.String())
+}
+
+func StripANSI(text string) string {
+	return ansiRegexp.ReplaceAllString(text, "")
 }
 
 func WriteFile(t *testing.T, path, content string) {

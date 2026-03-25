@@ -70,13 +70,14 @@ func TestRewriteContinuesAfterFailureAndReturnsError(t *testing.T) {
 	if !strings.Contains(err.Error(), "1 scenario(s) failed to rewrite") {
 		t.Fatalf("rewrite() error = %q, want failed rewrite summary", err.Error())
 	}
+	normalizedStdout := testutil.StripANSI(stdout.String())
 	for _, want := range []string{
 		"FAIL bad (",
 		"PASS ok (",
 		"Summary: total=2 passed=1 failed=1",
 	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Fatalf("stdout = %q, want substring %q", stdout.String(), want)
+		if !strings.Contains(normalizedStdout, want) {
+			t.Fatalf("stdout = %q, want substring %q", normalizedStdout, want)
 		}
 	}
 	if got := testutil.ReadFile(t, filepath.Join(testDir, "bad", "out")); got != "stale bad\n" {

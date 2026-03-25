@@ -1,14 +1,11 @@
 package output
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
 
-func TestFormatIncludesANSIByDefault(t *testing.T) {
-	t.Setenv("NO_COLOR", "")
-
+func TestFormatIncludesANSI(t *testing.T) {
 	got := Format("hello\n")
 	if !strings.Contains(got, "\x1b[") {
 		t.Fatalf("Format() = %q, want ANSI styling", got)
@@ -18,41 +15,24 @@ func TestFormatIncludesANSIByDefault(t *testing.T) {
 	}
 }
 
-func TestFormatPlainWhenNoColorSet(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-
-	if got := Format("hello\n"); got != "mire › hello\n" {
-		t.Fatalf("Format() = %q, want %q", got, "mire › hello\n")
-	}
-}
-
-func TestLabelsPlainWhenNoColorSet(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-
-	if got := Label("RUN", Info); got != "RUN" {
-		t.Fatalf("Label() = %q, want %q", got, "RUN")
-	}
-	if got := Label("PASS", Pass); got != "PASS" {
-		t.Fatalf("Label() = %q, want %q", got, "PASS")
-	}
-	if got := Label("FAIL", Fail); got != "FAIL" {
-		t.Fatalf("Label() = %q, want %q", got, "FAIL")
-	}
-}
-
-func TestFormatReadsNoColorAtRuntime(t *testing.T) {
-	t.Setenv("NO_COLOR", "")
-
-	styled := Format("hello\n")
-	if err := os.Setenv("NO_COLOR", "1"); err != nil {
-		t.Fatalf("Setenv() error = %v", err)
-	}
-
-	plain := Format("hello\n")
-	if !strings.Contains(styled, "\x1b[") {
-		t.Fatalf("styled Format() = %q, want ANSI styling", styled)
-	}
-	if plain != "mire › hello\n" {
-		t.Fatalf("plain Format() = %q, want %q", plain, "mire › hello\n")
+func TestLabelIncludesANSI(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		text  string
+		color Color
+	}{
+		{name: "info", text: "RUN", color: Info},
+		{name: "pass", text: "PASS", color: Pass},
+		{name: "fail", text: "FAIL", color: Fail},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Label(tc.text, tc.color)
+			if !strings.Contains(got, "\x1b[") {
+				t.Fatalf("Label() = %q, want ANSI styling", got)
+			}
+			if !strings.Contains(got, tc.text) {
+				t.Fatalf("Label() = %q, want text %q", got, tc.text)
+			}
+		})
 	}
 }
