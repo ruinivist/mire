@@ -2,6 +2,8 @@
 
 E2E tests for CLIs.
 
+![demo](demo.gif)
+
 # Quickstart
 
 ## Install

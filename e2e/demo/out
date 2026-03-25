@@ -1,4 +1,11 @@
-[?2004h$ djfksd fsdf
-[?2004lbash: djfksd: command not found
+[?2004h$ cowsay "you can just type and test yo  as you wouid  ld"
+[?2004l _________________________________________
+< you can just type and test as you would >
+ -----------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
 [?2004h$ exit
 [?2004lexit
