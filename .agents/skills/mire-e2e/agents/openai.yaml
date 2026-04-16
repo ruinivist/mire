@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mire E2E"
+  short_description: "Record and replay CLI E2E tests with mire"
+  default_prompt: "Use $mire-e2e to create or update CLI end-to-end tests with mire."
